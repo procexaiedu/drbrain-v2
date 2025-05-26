@@ -238,7 +238,7 @@ export default function AdvancedFilters({ onFiltersChange, isOpen, onClose }: Ad
           <div className="flex flex-wrap gap-2">
             {filters.searchTerm && (
               <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                Busca: "{filters.searchTerm}"
+                Busca: &quot;{filters.searchTerm}&quot;
                 <button
                   onClick={() => updateFilter('searchTerm', '')}
                   className="ml-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full text-blue-400 hover:text-blue-600"

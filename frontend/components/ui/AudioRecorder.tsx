@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { 
   MicrophoneIcon, 
   StopIcon, 
@@ -38,15 +38,22 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
   // Cleanup ao desmontar
   useEffect(() => {
     return () => {
-      stopRecording();
+      // Cleanup direto sem dependências
+      if (mediaRecorderRef.current && recordingState === 'recording') {
+        mediaRecorderRef.current.stop();
+      }
       if (timerRef.current) {
         clearTimeout(timerRef.current);
+        clearInterval(timerRef.current);
       }
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
       }
       if (audioUrl) {
         URL.revokeObjectURL(audioUrl);
+      }
+      if (audioContextRef.current) {
+        audioContextRef.current.close();
       }
     };
   }, []);
@@ -190,10 +197,12 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
     }
   };
 
-  const stopRecording = () => {
+  const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current && recordingState === 'recording') {
       mediaRecorderRef.current.stop();
-      clearInterval(timerRef.current);
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
       setAudioLevel(0);
       
       if (animationFrameRef.current) {
@@ -205,7 +214,7 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
         audioContextRef.current = null;
       }
     }
-  };
+  }, [recordingState]);
 
   const playAudio = () => {
     if (audioElementRef.current && audioUrl) {
