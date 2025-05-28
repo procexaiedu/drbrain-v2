@@ -2,6 +2,7 @@
 
 import React from 'react';
 import ReactMarkdown from 'react-markdown'; // Para renderizar Markdown do agente
+import { UserIcon, CpuChipIcon } from '@heroicons/react/24/solid'; // Ícones sólidos para avatares padrão
 
 // Reutilizando a interface Message de ChatInterface.tsx ou definindo-a aqui se movida.
 export interface Message {
@@ -27,50 +28,67 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
   const formattedTimestamp = new Date(message.timestamp).toLocaleTimeString('pt-BR', {
     hour: '2-digit',
     minute: '2-digit',
-    timeZone: 'America/Sao_Paulo'
   });
 
+  const defaultUserAvatar = (
+    <div className="w-full h-full rounded-full bg-indigo-500 flex items-center justify-center">
+      <UserIcon className="h-5 w-5 text-white" />
+    </div>
+  );
+
+  const defaultAgentAvatar = (
+    <div className="w-full h-full rounded-full bg-purple-500 flex items-center justify-center">
+      <CpuChipIcon className="h-5 w-5 text-white" />
+    </div>
+  );
+
+  const avatarContent = message.avatar ? (
+    typeof message.avatar === 'string' ? (
+      <img src={message.avatar} alt={message.userName || 'avatar'} className="w-full h-full object-cover rounded-full" />
+    ) : (
+      message.avatar // Renderiza o ReactNode diretamente
+    )
+  ) : isUser ? (
+    defaultUserAvatar
+  ) : (
+    defaultAgentAvatar
+  );
+
   return (
-    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-4`}>
-      <div className={`flex items-end max-w-xs md:max-w-md lg:max-w-lg ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
+    <div className={`flex w-full ${isUser ? 'justify-end' : 'justify-start'} my-2`}>
+      <div className={`flex items-end max-w-[85%] md:max-w-[75%] ${isUser ? 'flex-row-reverse space-x-reverse space-x-2' : 'flex-row space-x-2'}`}>
         {/* Avatar */}
-        {message.avatar && (
-          <div className={`w-8 h-8 rounded-full flex items-center justify-center overflow-hidden ${isUser ? 'ml-2' : 'mr-2'} self-start`}>
-            {typeof message.avatar === 'string' ? (
-              <img src={message.avatar} alt={message.userName || 'avatar'} className="w-full h-full object-cover" />
-            ) : (
-              message.avatar // Renderiza o ReactNode diretamente
-            )}
-          </div>
-        )}
-        {!message.avatar && (
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-sm ${isUser ? 'ml-2 bg-indigo-500' : 'mr-2 bg-gray-400'} self-start`}>
-                {isUser ? message.userName?.substring(0,1) || 'U' : message.userName?.substring(0,1) || 'A'}
-            </div>
-        )}
+        <div className="w-8 h-8 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0 self-start mt-1">
+          {avatarContent}
+        </div>
 
         {/* Balão da Mensagem e Conteúdo */}
-        <div className={`px-4 py-3 rounded-lg shadow-md ${isUser ? 'bg-indigo-500 text-white' : 'bg-white text-gray-800 border border-gray-200'}`}>
-          {/* Nome do Usuário/Agente */}
-          <p className={`text-xs font-semibold mb-1 ${isUser ? 'text-indigo-200 text-right' : 'text-gray-600'}`}>
+        <div 
+          className={`px-4 py-3 rounded-xl shadow-md relative group ${
+            isUser 
+              ? 'bg-gradient-to-br from-indigo-500 to-purple-600 text-white rounded-br-none' 
+              : 'bg-white text-gray-800 border border-gray-200 rounded-bl-none'
+          }`}
+        >
+          {/* Nome do Usuário/Agente (opcional, pode ser redundante se o avatar for claro) */}
+          {/* <p className={`text-xs font-semibold mb-1 ${isUser ? 'text-indigo-200 text-right' : 'text-gray-600'}`}>
             {message.userName}
-          </p>
+          </p> */}
           
-          {/* Conteúdo da Mensagem */}
           {message.isLoading ? (
-            <div className="flex items-center">
-              <div className="w-2 h-2 bg-gray-400 rounded-full animate-pulse mr-1"></div>
-              <div className="w-2 h-2 bg-gray-400 rounded-full animate-pulse delay-75 mr-1"></div>
-              <div className="w-2 h-2 bg-gray-400 rounded-full animate-pulse delay-150"></div>
+            <div className="flex items-center space-x-1.5 py-1">
+              <div className={`w-2 h-2 ${isUser ? 'bg-indigo-200' : 'bg-gray-400'} rounded-full animate-pulse`}></div>
+              <div className={`w-2 h-2 ${isUser ? 'bg-indigo-200' : 'bg-gray-400'} rounded-full animate-pulse delay-75`}></div>
+              <div className={`w-2 h-2 ${isUser ? 'bg-indigo-200' : 'bg-gray-400'} rounded-full animate-pulse delay-150`}></div>
             </div>
           ) : message.audioSrc ? (
-            <audio controls src={message.audioSrc} className="max-w-full" />
+            <audio controls src={message.audioSrc} className="max-w-full h-10" />
           ) : (
-            <div className="prose prose-sm max-w-none">
+            <div className={`prose prose-sm max-w-none ${isUser ? 'text-white prose-invert' : 'text-gray-700'} break-words`}>
               <ReactMarkdown
                 components={{
-                  // Para garantir que links abram em nova aba e tenham bom estilo
-                  a: ({node, ...props}) => <a {...props} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline" />
+                  a: ({node, ...props}) => <a {...props} target="_blank" rel="noopener noreferrer" className={`${isUser ? 'text-indigo-300 hover:text-indigo-200' : 'text-indigo-600 hover:text-indigo-500'} underline`} />,
+                  p: ({node, ...props}) => <p {...props} className="mb-0 last:mb-0" />, // Remover margem inferior dos parágrafos dentro do balão
                 }}
               >
                 {message.text}
@@ -78,10 +96,16 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
             </div>
           )}
 
-          {/* Timestamp */}
-          <p className={`text-xs mt-2 ${isUser ? 'text-indigo-200 text-right' : 'text-gray-400 text-left'}`}>
+          {/* Timestamp sutil, aparece no hover do balão */}
+          <div 
+            className={`absolute text-[10px] opacity-0 group-hover:opacity-100 transition-opacity duration-200 ease-in-out ${
+              isUser 
+                ? 'bottom-1 -left-14 text-gray-400' 
+                : 'bottom-1 -right-14 text-gray-400'
+            } ${isUser && 'text-right'} whitespace-nowrap`}
+          >
             {formattedTimestamp}
-          </p>
+          </div>
         </div>
       </div>
     </div>
