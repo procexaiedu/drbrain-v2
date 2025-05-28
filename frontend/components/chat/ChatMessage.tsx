@@ -2,6 +2,7 @@
 
 import React from 'react';
 import ReactMarkdown from 'react-markdown'; // Para renderizar Markdown do agente
+import remarkGfm from 'remark-gfm'; // Importar remark-gfm
 import { UserIcon, CpuChipIcon } from '@heroicons/react/24/solid'; // Ícones sólidos para avatares padrão
 
 // Reutilizando a interface Message de ChatInterface.tsx ou definindo-a aqui se movida.
@@ -86,6 +87,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
           ) : (
             <div className={`prose prose-sm max-w-none ${isUser ? 'text-white prose-invert' : 'text-gray-700'} break-words`}>
               <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
                 components={{
                   a: ({node, ...props}) => <a {...props} target="_blank" rel="noopener noreferrer" className={`${isUser ? 'text-indigo-300 hover:text-indigo-200' : 'text-indigo-600 hover:text-indigo-500'} underline`} />,
                   p: ({node, ...props}) => <p {...props} className="mb-0 last:mb-0" />, // Remover margem inferior dos parágrafos dentro do balão

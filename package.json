@@ -13,6 +13,7 @@
     "supabase": "^2.23.4"
   },
   "dependencies": {
+    "remark-gfm": "^4.0.1",
     "sonner": "^2.0.3"
   }
 }
