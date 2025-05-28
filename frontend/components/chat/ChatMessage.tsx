@@ -85,7 +85,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
           ) : message.audioSrc ? (
             <audio controls src={message.audioSrc} className="max-w-full h-10" />
           ) : (
-            <div className={`prose prose-sm max-w-none ${isUser ? 'text-white prose-invert' : 'text-gray-700'} break-words`}>
+            <div className={`prose prose-sm max-w-none ${isUser ? 'text-white prose-invert' : 'text-gray-700'} break-words whitespace-pre-line`}>
               <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
                 components={{
