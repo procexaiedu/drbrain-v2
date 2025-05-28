@@ -126,11 +126,39 @@ export default function OnboardingPage() {
         // console.log("Onboarding: Histórico recebido:", historyMessages);
         
         const currentMedicoName = medicoNome || user.email?.split('@')[0] || 'Usuário';
-        const processedHistory = historyMessages.map(msg => ({
-          ...msg,
-          avatar: msg.sender === 'agent' ? agentAvatarNode : undefined,
-          userName: msg.sender === 'agent' ? 'Sarah (IA)' : `Dr. ${currentMedicoName}`
-        }));
+        const processedHistory = historyMessages.map(msg => {
+          let text = msg.text;
+          if (msg.sender === 'user') {
+            // Tenta remover o padrão "Mensagem: olá Nome_Medico: [Nome Real]"
+            // Isso é um paliativo. O ideal é corrigir na origem do salvamento do histórico.
+            const pattern = /^Mensagem: olá Nome_Medico: .*?$/i;
+            if (pattern.test(text)) {
+              // Extrai o que vem depois de "Mensagem: " e "Nome_Medico: [Nome]"
+              // Se o padrão for "Mensagem: olá Nome_Medico: Alberto de Souza", queremos "olá"
+              // Esta lógica pode precisar de ajuste fino dependendo da variabilidade do prefixo.
+              // Por enquanto, uma abordagem simples: se o padrão completo existir, 
+              // pegamos a parte original que seria a "mensagem" real.
+              // Exemplo: "Mensagem: olá Nome_Medico: Alberto de Souza" -> "olá"
+              // Isso pode ser muito agressivo. Uma alternativa mais segura é verificar o prompt original:
+              // Se o prompt era "Olá", e o histórico é "Mensagem: Olá Nome_Medico: Alberto", então o texto deve ser "Olá".
+              // Por simplicidade e com base na imagem, vou tentar uma remoção mais direta do prefixo conhecido.
+              text = text.replace(/^Mensagem: (.*?) Nome_Medico: .*$/i, '$1').trim();
+              if (text.startsWith("olá")) {
+                // Se após a remoção, a mensagem começar com "olá" (como no exemplo da imagem),
+                // e o nome do médico estiver no prefixo, podemos assumir que "olá" é a mensagem original.
+                // Caso contrário, a regex acima pode não ter funcionado como esperado.
+              } 
+              // Se a regex acima não capturar bem ou se o formato variar muito,
+              // será preciso uma lógica mais robusta ou a correção na fonte de dados.
+            }
+          }
+          return {
+            ...msg,
+            text, // usa o texto processado
+            avatar: msg.sender === 'agent' ? agentAvatarNode : undefined,
+            userName: msg.sender === 'agent' ? 'Sarah (IA)' : `Dr. ${currentMedicoName}`
+          };
+        });
         
         setInitialMessages(processedHistory);
         setChatKey(prevKey => prevKey + 1);

@@ -93,7 +93,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
                   p: ({node, ...props}) => <p {...props} className="mb-0 last:mb-0" />, // Remover margem inferior dos parágrafos dentro do balão
                 }}
               >
-                {message.text}
+                {isUser ? message.text : message.text.replace(/^```markdown\n|\n```$/g, '')}
               </ReactMarkdown>
             </div>
           )}
