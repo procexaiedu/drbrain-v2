@@ -90,28 +90,17 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
                 remarkPlugins={[remarkGfm]}
                 components={{
                   a: ({node, ...props}) => <a {...props} target="_blank" rel="noopener noreferrer" className={`${isUser ? 'text-indigo-300 hover:text-indigo-200' : 'text-indigo-600 hover:text-indigo-500'} underline`} />,
-                  p: ({node, ...props}) => <p {...props} className="mb-0 last:mb-0" />, // Remover margem inferior dos parágrafos dentro do balão
+                  p: ({node, ...props}) => <p {...props} />,
                 }}
               >
                 {isUser ? message.text : message.text.replace(/^```markdown\n|\n```$/g, '')}
               </ReactMarkdown>
             </div>
           )}
-
-          {/* Timestamp sutil, aparece no hover do balão */}
-          <div 
-            className={`absolute text-[10px] opacity-0 group-hover:opacity-100 transition-opacity duration-200 ease-in-out ${
-              isUser 
-                ? 'bottom-1 -left-14 text-gray-400' 
-                : 'bottom-1 -right-14 text-gray-400'
-            } ${isUser && 'text-right'} whitespace-nowrap`}
-          >
-            {formattedTimestamp}
-          </div>
         </div>
       </div>
     </div>
   );
 };
 
-export default ChatMessage; 
+export default ChatMessage;
