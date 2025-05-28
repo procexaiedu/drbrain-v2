@@ -7,7 +7,7 @@ import { useAuth } from '@/context/AuthContext';
 import ChatInterface from '@/components/chat/ChatInterface';
 import { Message } from '@/components/chat/ChatMessage';
 import { supabase } from '@/lib/supabaseClient';
-import { CpuChipIcon } from '@heroicons/react/24/solid';
+import { CpuChipIcon, ExclamationTriangleIcon } from '@heroicons/react/24/solid';
 
 interface MedicoProfile {
   nome_completo?: string;
@@ -28,6 +28,9 @@ export default function OnboardingPage() {
   const [error, setError] = useState<string | null>(null);
   const [initialMessages, setInitialMessages] = useState<Message[]>([]);
   const [chatKey, setChatKey] = useState<number>(0);
+  const [showClearConfirmModal, setShowClearConfirmModal] = useState(false);
+  const [isClearingHistory, setIsClearingHistory] = useState(false);
+  const [clearHistoryError, setClearHistoryError] = useState<string | null>(null);
 
   const agentAvatarNode = (
     <div className="w-full h-full rounded-full bg-gradient-to-br from-purple-500 to-violet-600 flex items-center justify-center">
@@ -230,20 +233,61 @@ export default function OnboardingPage() {
     }
   }, [user, authLoading, router]);
 
+  const confirmClearHistory = useCallback(async () => {
+    if (!user) {
+      setClearHistoryError("Usuário não autenticado.");
+      return;
+    }
+    setIsClearingHistory(true);
+    setClearHistoryError(null);
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Sessão inválida para limpar histórico.");
+
+      const response = await fetch('/edge/v1/limpar-historico-onboarding', {
+        method: 'POST', // Edge function agora espera POST para consistência com outras e para passar token
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        // Body pode ser vazio ou enviar o medico_id se a função for adaptada, mas a função atual usa o user.id do token
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Erro desconhecido ao limpar histórico.' }));
+        throw new Error(errorData.message);
+      }
+
+      // Se chegou aqui, o histórico no DB foi limpo com sucesso
+      // Agora, limpa o chat localmente
+      const currentMedicoName = medicoNome || 'Médico(a)';
+      const welcomeMessage: Message = {
+          id: 'agent-welcome-cleared',
+          text: `Histórico limpo! Olá novamente, Dr. ${currentMedicoName}! Vamos recomeçar seu onboarding. Qual seu nome completo?`,
+          sender: 'agent',
+          timestamp: new Date().toISOString(),
+          avatar: agentAvatarNode,
+          userName: 'Sarah (IA)',
+      };
+      setInitialMessages([welcomeMessage]);
+      setChatKey(prevKey => prevKey + 1);
+      setHasAttemptedHistoryLoad(false);
+      setShowClearConfirmModal(false);
+
+    } catch (err: any) {
+      console.error("Erro ao limpar histórico de onboarding:", err);
+      setClearHistoryError(err.message || "Falha ao limpar histórico no servidor.");
+    } finally {
+      setIsClearingHistory(false);
+    }
+  }, [user, medicoNome, agentAvatarNode]);
+
   const handleClearChat = useCallback(() => {
-    const currentMedicoName = medicoNome || 'Médico(a)';
-    const welcomeMessage: Message = {
-        id: 'agent-welcome-cleared',
-        text: `Olá novamente, Dr. ${currentMedicoName}! Vamos recomeçar seu onboarding. Qual seu nome completo?`,
-        sender: 'agent',
-        timestamp: new Date().toISOString(),
-        avatar: agentAvatarNode,
-        userName: 'Sarah (IA)',
-    };
-    setInitialMessages([welcomeMessage]);
-    setChatKey(prevKey => prevKey + 1);
-    setHasAttemptedHistoryLoad(false); // Permitir recarregar histórico se o chat for limpo e quisermos essa lógica
-  }, [medicoNome, agentAvatarNode]);
+    // Em vez de limpar diretamente, abre o modal de confirmação
+    setClearHistoryError(null); // Limpa erros anteriores do modal
+    setShowClearConfirmModal(true);
+  }, []);
 
   // Estado de Carregamento Principal
   if (authLoading || (!user && !authLoading)) { // Se autenticação está carregando ou se já terminou e não há usuário
@@ -269,27 +313,121 @@ export default function OnboardingPage() {
   // Se chegou aqui, user existe, authLoading é false, isProfileLoading é false.
   // O histórico já deve ter sido carregado ou a mensagem de boas-vindas definida pelo useEffect de histórico.
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 p-4 sm:p-6 md:p-8">
-      <div className="w-full max-w-2xl mx-auto bg-white shadow-2xl rounded-xl overflow-hidden" style={{height: 'calc(100vh - 4rem)', maxHeight: '700px'}}>
-        <ChatInterface
-          key={chatKey}
-          medicoNome={medicoNome || 'Convidado'}
-          onSendMessage={handleSendMessage}
-          onOnboardingComplete={handleOnboardingComplete}
-          initialMessages={initialMessages}
-          agentName="Sarah (IA)"
-          agentAvatar={agentAvatarNode}
-          chatTitle="Onboarding Dr.Brain"
-          chatSubtitle={`Personalizando a Secretária IA para Dr. ${medicoNome || 'você'}`}
-          onClearChat={handleClearChat}
-          inputPlaceholder="Digite seu nome ou responda à Sarah..."
-        />
-      </div>
-      {error && (
-        <div className="mt-4 p-3 bg-red-100 text-red-700 border border-red-300 rounded-md max-w-2xl w-full text-sm">
-          <strong>Erro:</strong> {error}
+    <div className="flex flex-col h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-gray-800 text-white overflow-hidden">
+      <header className="bg-gray-800/50 backdrop-blur-md shadow-lg p-4 sm:p-6">
+        <div className="container mx-auto flex justify-between items-center">
+          <div className="flex items-center space-x-3">
+            <CpuChipIcon className="h-8 w-8 text-purple-400" />
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-500">
+              Onboarding Dr. Brain
+            </h1>
+          </div>
+          <div className="flex items-center space-x-4">
+            {medicoNome && (
+              <span className="text-sm text-gray-300 hidden sm:block">
+                Dr(a). {medicoNome}
+              </span>
+            )}
+            <button
+              onClick={() => signOut()}
+              className="px-4 py-2 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 rounded-lg shadow-md transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-opacity-50"
+            >
+              Sair
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <main className="flex-1 overflow-y-auto p-2 sm:p-4 md:p-6">
+        <div className="container mx-auto h-full max-w-4xl">
+          {error && (
+            <div className="bg-red-500/20 border border-red-700 text-red-300 px-4 py-3 rounded-lg mb-4" role="alert">
+              <strong className="font-bold">Erro: </strong>
+              <span className="block sm:inline">{error}</span>
+            </div>
+          )}
+
+          {profileError && (
+            <div className="bg-yellow-500/20 border border-yellow-700 text-yellow-300 px-4 py-3 rounded-lg mb-4" role="alert">
+              <strong className="font-bold">Aviso de Perfil: </strong>
+              <span className="block sm:inline">{profileError}</span>
+            </div>
+          )}
+
+          <ChatInterface
+            key={chatKey}
+            medicoNome={medicoNome || (user?.email?.split('@')[0] || 'Dr(a).')}
+            chatTitle={medicoNome ? `Bem-vindo(a) ao Onboarding, Dr. ${medicoNome}!` : "Onboarding Dr. Brain"}
+            initialMessages={initialMessages}
+            onSendMessage={handleSendMessage}
+            onClearChat={handleClearChat}
+            onOnboardingComplete={handleOnboardingComplete}
+            agentName="Sarah (IA)"
+            agentAvatar={agentAvatarNode}
+            userAvatar={null}
+            inputPlaceholder={medicoNome ? "Digite sua resposta aqui..." : "Qual seu nome completo para começarmos?"}
+          />
+        </div>
+      </main>
+
+      {showClearConfirmModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-slate-800 p-6 sm:p-8 rounded-xl shadow-2xl max-w-md w-full border border-slate-700">
+            <div className="flex items-start space-x-3 mb-4">
+              <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-500/20 sm:mx-0 sm:h-10 sm:w-10">
+                <ExclamationTriangleIcon className="h-6 w-6 text-red-400" aria-hidden="true" />
+              </div>
+              <div className="mt-0 text-left"> {/* Ajustado para alinhar com o ícone */}
+                <h3 className="text-lg sm:text-xl font-semibold leading-6 text-white" id="modal-title">
+                  Confirmar Limpeza do Histórico
+                </h3>
+              </div>
+            </div>
+            <div className="text-sm sm:text-base text-slate-300 mb-6">
+              <p>
+                Você tem certeza que deseja limpar todo o histórico de mensagens do seu onboarding?
+              </p>
+              <p className="mt-2 font-semibold text-red-400">
+                Esta ação é irreversível e apagará permanentemente todas as suas interações anteriores com a Sarah (IA) nesta etapa.
+              </p>
+            </div>
+
+            {clearHistoryError && (
+              <div className="bg-red-500/20 border border-red-700 text-red-300 px-3 py-2 rounded-md mb-4 text-sm" role="alert">
+                {clearHistoryError}
+              </div>
+            )}
+
+            <div className="mt-6 flex flex-col sm:flex-row-reverse gap-3">
+              <button
+                type="button"
+                disabled={isClearingHistory}
+                onClick={confirmClearHistory}
+                className={`w-full inline-flex justify-center rounded-md bg-red-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-red-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700 transition-colors duration-150 ${isClearingHistory ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                {isClearingHistory ? (
+                  <>
+                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Limpando...
+                  </>
+                ) : "Sim, Limpar Histórico"}
+              </button>
+              <button
+                type="button"
+                disabled={isClearingHistory}
+                onClick={() => setShowClearConfirmModal(false)}
+                className="w-full inline-flex justify-center rounded-md bg-slate-700 px-4 py-2.5 text-sm font-semibold text-slate-200 shadow-sm hover:bg-slate-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-600 transition-colors duration-150 sm:mt-0"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
         </div>
       )}
+
     </div>
   );
 } 
