@@ -104,9 +104,9 @@ export default function OnboardingPage() {
       setHasAttemptedHistoryLoad(true); // Marcar que a tentativa foi feita
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        if (!session) throw new Error("Sessão não encontrada para carregar histórico.");
+        if (!session || !user) throw new Error("Sessão ou usuário não encontrado para carregar histórico.");
 
-        const response = await fetch('/edge/v1/get-onboarding-history', {
+        const response = await fetch(`/edge/v1/get-onboarding-history?sessionId=${encodeURIComponent(user.id)}`, {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${session.access_token}`,
