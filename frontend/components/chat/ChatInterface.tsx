@@ -254,7 +254,7 @@ export default function ChatInterface({
               setAudioPlaybackUrl(null);
               if (setAudioPlaybackUrlForParent) setAudioPlaybackUrlForParent(null);
             }} 
-            className="p-2 text-gray-500 hover:text-red-600 rounded-full hover:bg-red-100 transition-colors"
+            className="p-2 text-red-500 hover:text-red-700"
             title="Descartar áudio"
           >
             <XMarkIcon className="h-5 w-5" />
@@ -262,63 +262,44 @@ export default function ChatInterface({
         </div>
       )}
 
-      <form onSubmit={handleSend} className="p-3 sm:p-4 border-t bg-white sticky bottom-0 z-10">
-        <div className="flex items-end space-x-2">
-          <textarea
-            ref={textareaRef}
-            value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
-            placeholder={isRecording ? "Gravando áudio..." : (inputPlaceholder || "Digite sua mensagem...")}
-            className="flex-1 py-2.5 px-3.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none resize-none transition-all duration-150 bg-white text-sm"
-            rows={1}
-            disabled={isRecording || isAgentTyping}
-            style={{ minHeight: '44px', maxHeight: '120px' }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                if (!((!inputText.trim() && !audioBlob) || isRecording || isAgentTyping)) {
-                    handleSend();
-                }
-              }
-            }}
-          />
-          <button
-            type="button"
-            onClick={isRecording ? handleStopRecording : handleStartRecording}
-            title={isRecording ? "Parar Gravação" : "Gravar Áudio"}
-            className={`
-              p-2.5 text-white rounded-lg shadow-sm 
-              focus:outline-none focus:ring-2 focus:ring-offset-2 
-              transition-colors duration-150 flex items-center justify-center
-              ${isRecording 
-                ? 'bg-red-500 hover:bg-red-600 focus:ring-red-500' 
-                : 'bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-500'
-              }
-              ${isAgentTyping ? 'opacity-50 cursor-not-allowed' : ''}
-            `}
+      <form onSubmit={handleSend} className="border-t border-gray-200 bg-white p-3 sm:p-4 flex items-end space-x-2">
+        <textarea
+          ref={textareaRef}
+          value={inputText}
+          onChange={(e) => setInputText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              handleSend();
+            }
+          }}
+          placeholder={inputPlaceholder || "Digite sua mensagem..."}
+          className="flex-1 p-3 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-shadow duration-150 min-h-[44px] max-h-32 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 text-gray-900 placeholder-gray-500"
+          rows={1}
+          disabled={isRecording || isAgentTyping}
+        />
+        {!isRecording && !audioBlob && (
+          <button 
+            type="button" 
+            onClick={handleStartRecording}
             disabled={isAgentTyping}
+            className="p-3 text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors disabled:opacity-50"
           >
-            {isRecording ? (
-              <StopCircleIcon className="h-5 w-5" />
-            ) : (
-              <MicrophoneIcon className="h-5 w-5" />
-            )}
+            <MicrophoneIcon className="h-5 w-5" />
           </button>
-          <button
-            type="submit"
-            title="Enviar Mensagem"
-            className={`
-              p-2.5 text-white bg-indigo-600 rounded-lg shadow-sm 
-              hover:bg-indigo-700 focus:outline-none focus:ring-2 
-              focus:ring-offset-2 focus:ring-indigo-500 
-              transition-colors duration-150 flex items-center justify-center
-              ${(!inputText.trim() && !audioBlob) || isAgentTyping || isRecording ? 'opacity-50 cursor-not-allowed' : ''}
-            `}
-            disabled={(!inputText.trim() && !audioBlob) || isAgentTyping || isRecording}
-          >
-            <PaperAirplaneIcon className="h-5 w-5" />
+        )}
+        {isRecording && (
+          <button type="button" onClick={handleStopRecording} className="p-3 text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors">
+            <StopCircleIcon className="h-5 w-5" />
           </button>
-        </div>
+        )}
+        <button 
+          type="submit" 
+          disabled={(!inputText.trim() && !audioBlob) || isAgentTyping || isRecording}
+          className="p-3 text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors disabled:opacity-50"
+        >
+          <PaperAirplaneIcon className="h-5 w-5" />
+        </button>
       </form>
     </div>
   );
