@@ -90,7 +90,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
                 remarkPlugins={[remarkGfm]}
                 components={{
                   a: ({node, ...props}) => <a {...props} target="_blank" rel="noopener noreferrer" className={`${isUser ? 'text-indigo-300 hover:text-indigo-200' : 'text-indigo-600 hover:text-indigo-500'} underline`} />,
-                  p: ({node, ...props}) => <p {...props} />,
+                  p: ({node, ...props}) => <p {...props} className="mb-2 last:mb-0" />,
                 }}
               >
                 {isUser ? message.text : message.text.replace(/^```markdown\n|\n```$/g, '')}
