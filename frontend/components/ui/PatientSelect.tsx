@@ -74,7 +74,9 @@ const PatientSelect: React.FC<PatientSelectProps> = ({
       }
 
       const data = await response.json();
-      setPatients(data.pacientes || []);
+      console.log('PatientSelect - API Response Data:', data); // Log para depuração
+      console.log('PatientSelect - Pacientes da API:', data?.pacientes); // Log para depuração
+      setPatients(data?.pacientes || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro desconhecido');
       setPatients([]);
@@ -204,7 +206,7 @@ const PatientSelect: React.FC<PatientSelectProps> = ({
               </div>
             )}
 
-            {!loading && !error && patients.map((patient) => (
+            {!loading && !error && Array.isArray(patients) && patients.map((patient) => (
               <button
                 key={patient.id}
                 type="button"
