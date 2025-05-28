@@ -117,7 +117,10 @@ const PatientSelect: React.FC<PatientSelectProps> = ({
     setSearchTerm('');
   };
 
-  const formatCPF = (cpf: string): string => {
+  const formatCPF = (cpf: string | null | undefined): string => {
+    if (!cpf) {
+      return 'CPF não informado'; // Ou string vazia: ''
+    }
     return cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
   };
 
