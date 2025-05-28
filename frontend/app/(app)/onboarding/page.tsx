@@ -22,6 +22,7 @@ export default function OnboardingPage() {
   const [medicoNome, setMedicoNome] = useState<string | null>(null);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [isProfileLoading, setIsProfileLoading] = useState(true);
+  const [hasAttemptedHistoryLoad, setHasAttemptedHistoryLoad] = useState(false); // Novo estado
 
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
@@ -36,8 +37,10 @@ export default function OnboardingPage() {
 
   const fetchMedicoProfile = useCallback(async () => {
     if (!user) return;
+    // console.log("Onboarding: Iniciando fetchMedicoProfile");
     setIsProfileLoading(true);
     setProfileError(null);
+    setHasAttemptedHistoryLoad(false); // Resetar flag de histórico antes de buscar perfil
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error("Sessão não encontrada para buscar perfil.");
@@ -54,86 +57,106 @@ export default function OnboardingPage() {
         throw new Error(errData.message || `Erro ao buscar perfil do médico: ${response.status}`);
       }
       const profile: MedicoProfile = await response.json();
+      // console.log("Onboarding: Perfil recebido:", profile);
       setMedicoNome(profile.nome_completo || null);
     } catch (err: any) {
       console.error("Erro ao buscar perfil do médico:", err);
       setProfileError(err.message || "Falha ao carregar dados do perfil.");
-      setMedicoNome(null); // Garantir que nome seja nulo em caso de erro
+      setMedicoNome(null);
     } finally {
+      // console.log("Onboarding: fetchMedicoProfile finalizado");
       setIsProfileLoading(false);
     }
   }, [user]);
 
+  // Efeito para buscar o perfil do médico SOMENTE QUANDO user mudar e não houver nome
   useEffect(() => {
-    if (user && !medicoNome && isProfileLoading) { // Adicionado isProfileLoading para evitar chamadas múltiplas
+    // console.log("Onboarding: useEffect [user] disparado. User:", user);
+    if (user) {
+      setMedicoNome(null); // Limpa nome anterior se usuário mudou
+      setProfileError(null);
+      setIsProfileLoading(true); // Garante que vai buscar o perfil
+      setHasAttemptedHistoryLoad(false); // Resetar flag para o novo usuário
       fetchMedicoProfile();
+    } else {
+      // Limpar dados se não houver usuário (ex: logout)
+      setMedicoNome(null);
+      setProfileError(null);
+      setIsProfileLoading(false); // Não está carregando se não há usuário
+      setInitialMessages([]);
+      setHasAttemptedHistoryLoad(false);
     }
-  }, [user, medicoNome, fetchMedicoProfile, isProfileLoading]);
+  }, [user, fetchMedicoProfile]); // fetchMedicoProfile aqui é estável devido ao useCallback com [user]
 
+  // Efeito para carregar histórico OU definir mensagem inicial
   useEffect(() => {
+    // console.log(`Onboarding: useEffect [user, medicoNome, profileError, isProfileLoading, authLoading] disparado. 
+    // User: ${!!user}, MedicoNome: ${medicoNome}, ProfileError: ${profileError}, 
+    // IsProfileLoading: ${isProfileLoading}, AuthLoading: ${authLoading}, HasAttemptedHistoryLoad: ${hasAttemptedHistoryLoad}`);
+
+    if (!user || authLoading || isProfileLoading || hasAttemptedHistoryLoad) {
+      // console.log("Onboarding: Abortando loadOnboardingHistory (condições não atendidas ou já tentado)");
+      return; // Só prosseguir se user existir, auth e profile não estiverem carregando, e não tiver tentado carregar histórico ainda
+    }
+
     const loadOnboardingHistory = async () => {
-      if (user) {
-        try {
-          const { data: { session } } = await supabase.auth.getSession();
-          if (!session) throw new Error("Sessão não encontrada para carregar histórico.");
+      // console.log("Onboarding: Iniciando loadOnboardingHistory");
+      setHasAttemptedHistoryLoad(true); // Marcar que a tentativa foi feita
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) throw new Error("Sessão não encontrada para carregar histórico.");
 
-          const response = await fetch('/edge/v1/get-onboarding-history', {
-            method: 'GET',
-            headers: {
-              'Authorization': `Bearer ${session.access_token}`,
-              'Content-Type': 'application/json',
-            },
-          });
+        const response = await fetch('/edge/v1/get-onboarding-history', {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json',
+          },
+        });
 
-          if (!response.ok) {
-            const errData = await response.json().catch(() => null);
-            throw new Error(errData?.message || 'Falha ao carregar histórico do onboarding');
-          }
-          const historyMessages: Message[] = await response.json();
-          
-          const currentMedicoName = medicoNome || user.email?.split('@')[0] || 'Usuário';
-          const processedHistory = historyMessages.map(msg => ({
-            ...msg,
-            avatar: msg.sender === 'agent' ? agentAvatarNode : undefined,
-            userName: msg.sender === 'agent' ? 'Sarah (IA)' : `Dr. ${currentMedicoName}`
-          }));
-          
-          setInitialMessages(processedHistory);
-          setChatKey(prevKey => prevKey + 1);
-
-        } catch (err: any) {
-          console.error("Erro ao carregar histórico do onboarding:", err);
-          const welcomeMessage: Message = {
-            id: 'agent-welcome-error',
-            text: `Olá, Dr. ${medicoNome || 'Médico(a)'}! Tivemos um problema ao carregar seu histórico. Vamos começar seu onboarding para configurar sua Secretária IA. Qual seu nome completo?`,
-            sender: 'agent',
-            timestamp: new Date().toISOString(),
-            avatar: agentAvatarNode,
-            userName: 'Sarah (IA)',
-          };
-          setInitialMessages([welcomeMessage]);
-          setChatKey(prevKey => prevKey + 1);
+        if (!response.ok) {
+          const errData = await response.json().catch(() => null);
+          // console.warn("Onboarding: Falha ao carregar histórico, status:", response.status, errData);
+          throw new Error(errData?.message || 'Falha ao carregar histórico do onboarding');
         }
-      }
-    };
+        const historyMessages: Message[] = await response.json();
+        // console.log("Onboarding: Histórico recebido:", historyMessages);
+        
+        const currentMedicoName = medicoNome || user.email?.split('@')[0] || 'Usuário';
+        const processedHistory = historyMessages.map(msg => ({
+          ...msg,
+          avatar: msg.sender === 'agent' ? agentAvatarNode : undefined,
+          userName: msg.sender === 'agent' ? 'Sarah (IA)' : `Dr. ${currentMedicoName}`
+        }));
+        
+        setInitialMessages(processedHistory);
+        setChatKey(prevKey => prevKey + 1);
 
-    if (user && (medicoNome || profileError) && !isProfileLoading) { // Carregar histórico se nome existe ou se houve erro de perfil (e não está carregando)
-        loadOnboardingHistory();
-    } else if (user && !medicoNome && !authLoading && !profileError && !isProfileLoading) {
-      // Se user existe, não está carregando auth, nem perfil, e não houve erro de perfil, significa que fetchMedicoProfile terminou sem nome
-       const welcomeMessage: Message = {
-            id: 'agent-profile-error-generic',
-            text: `Bem-vindo(a)! Para começarmos, por favor, me diga seu nome completo.`,
-            sender: 'agent',
-            timestamp: new Date().toISOString(),
-            avatar: agentAvatarNode,
-            userName: 'Sarah (IA)',
+      } catch (err: any) {
+        // console.error("Erro dentro de loadOnboardingHistory:", err);
+        let welcomeText = `Olá, Dr. ${medicoNome || 'Médico(a)'}! Tivemos um problema ao carregar seu histórico. Vamos começar seu onboarding para configurar sua Secretária IA. Qual seu nome completo?`;
+        if (profileError && !medicoNome) {
+            welcomeText = `Bem-vindo(a)! Tivemos um problema ao carregar seus dados. Para começarmos, por favor, me diga seu nome completo.`;
+        }
+        const welcomeMessage: Message = {
+          id: 'agent-welcome-error',
+          text: welcomeText,
+          sender: 'agent',
+          timestamp: new Date().toISOString(),
+          avatar: agentAvatarNode,
+          userName: 'Sarah (IA)',
         };
         setInitialMessages([welcomeMessage]);
         setChatKey(prevKey => prevKey + 1);
-    }
+      }
+    };
 
-  }, [user, medicoNome, authLoading, profileError, fetchMedicoProfile, agentAvatarNode, isProfileLoading]);
+    loadOnboardingHistory();
+
+  // Cuidado com as dependências aqui para evitar loops.
+  // A ideia é que este efeito rode APÓS a tentativa de carregar o perfil.
+  }, [user, medicoNome, profileError, isProfileLoading, authLoading, agentAvatarNode, hasAttemptedHistoryLoad]); 
+  // Removido fetchMedicoProfile daqui
 
   const handleSendMessage = useCallback(async (messageType: 'text' | 'audio', content: string): Promise<Message | null> => {
     if (!user) {
@@ -169,7 +192,6 @@ export default function OnboardingPage() {
 
       const responseData: OnboardingResponse = await response.json();
       
-      // Tentativa simples de atualizar o nome se o N8N confirmar
       if (responseData.text.toLowerCase().includes('nome registrado como') && !medicoNome) {
         const nameFromBody = responseData.text.split('nome registrado como ')[1]?.split('.')[0];
         if (nameFromBody && nameFromBody.trim() !== '') {
@@ -196,7 +218,7 @@ export default function OnboardingPage() {
         userName: 'Sarah (IA)',
       };
     }
-  }, [user, medicoNome, agentAvatarNode]); // Removido fetchMedicoProfile daqui, pois a atualização de nome é local ou via side-effect
+  }, [user, medicoNome, agentAvatarNode]);
 
   const handleOnboardingComplete = useCallback(() => {
     router.push('/dashboard');
@@ -220,27 +242,38 @@ export default function OnboardingPage() {
     };
     setInitialMessages([welcomeMessage]);
     setChatKey(prevKey => prevKey + 1);
+    setHasAttemptedHistoryLoad(false); // Permitir recarregar histórico se o chat for limpo e quisermos essa lógica
   }, [medicoNome, agentAvatarNode]);
 
-  if (authLoading || !user || isProfileLoading) { // Modificado para incluir isProfileLoading
+  // Estado de Carregamento Principal
+  if (authLoading || (!user && !authLoading)) { // Se autenticação está carregando ou se já terminou e não há usuário
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-gray-100 to-gray-200 p-4">
         <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-b-4 border-indigo-600 mb-6"></div>
-        <p className="text-lg font-semibold text-indigo-700">Carregando seus dados...</p>
-        <p className="text-sm text-gray-600">Estamos preparando tudo para você.</p>
+        <p className="text-lg font-semibold text-indigo-700">{authLoading ? 'Verificando autenticação...' : 'Redirecionando...'}</p>
       </div>
     );
   }
-  // Se houve erro de perfil E não há nome, mostramos um estado de erro específico antes do chat.
-  // Mas se o chat puder lidar com nome nulo e pedir, podemos ir direto para o chat.
-  // A lógica atual de initialMessages já tenta lidar com isso.
+  // Se chegou aqui, user existe e authLoading é false.
+  // Agora, verificamos o carregamento do perfil.
+  if (isProfileLoading) {
+    return (
+        <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-gray-100 to-gray-200 p-4">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-b-4 border-indigo-600 mb-6"></div>
+          <p className="text-lg font-semibold text-indigo-700">Carregando seus dados...</p>
+          <p className="text-sm text-gray-600">Estamos preparando tudo para você.</p>
+        </div>
+      );
+  }
 
+  // Se chegou aqui, user existe, authLoading é false, isProfileLoading é false.
+  // O histórico já deve ter sido carregado ou a mensagem de boas-vindas definida pelo useEffect de histórico.
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 p-4 sm:p-6 md:p-8">
       <div className="w-full max-w-2xl mx-auto bg-white shadow-2xl rounded-xl overflow-hidden" style={{height: 'calc(100vh - 4rem)', maxHeight: '700px'}}>
         <ChatInterface
           key={chatKey}
-          medicoNome={medicoNome || 'Convidado'} // Passa o nome local ou um fallback
+          medicoNome={medicoNome || 'Convidado'}
           onSendMessage={handleSendMessage}
           onOnboardingComplete={handleOnboardingComplete}
           initialMessages={initialMessages}
