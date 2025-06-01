@@ -24,26 +24,6 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    // Verificar secret do N8N
-    const callbackSecret = req.headers.get('X-N8N-Callback-Secret');
-    const expectedSecret = Deno.env.get('N8N_CALLBACK_SECRET');
-    
-    if (!expectedSecret) {
-      console.error('N8N_CALLBACK_SECRET não configurado');
-      return new Response(JSON.stringify({ error: 'Configuração de segurança ausente' }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500,
-      });
-    }
-
-    if (!callbackSecret || callbackSecret !== expectedSecret) {
-      console.error('Secret inválido ou ausente');
-      return new Response(JSON.stringify({ error: 'Não autorizado' }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 401,
-      });
-    }
-
     // Parse do payload do N8N
     const payload: N8NCallbackPayload = await req.json();
     const { prontuario_id, medico_id, texto_rascunho, texto_transcricao_bruta, erro_msg } = payload;

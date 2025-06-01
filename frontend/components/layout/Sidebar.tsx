@@ -13,14 +13,16 @@ import {
   ChevronDoubleRightIcon,
   BeakerIcon,
   HeartIcon,
-  UsersIcon
+  UsersIcon,
+  CalendarDaysIcon
 } from '@heroicons/react/24/outline';
 import { 
   HomeIcon as HomeIconSolid, 
   DocumentTextIcon as DocumentTextIconSolid, 
   CogIcon as CogIconSolid, 
   BeakerIcon as BeakerIconSolid,
-  UsersIcon as UsersIconSolid
+  UsersIcon as UsersIconSolid,
+  CalendarDaysIcon as CalendarDaysIconSolid
 } from '@heroicons/react/24/solid';
 
 // Logo moderno e elegante
@@ -52,6 +54,13 @@ const navItems = [
     iconSolid: HomeIconSolid,
     description: 'Visão geral do sistema'
   },
+  {
+    href: '/agenda',
+    label: 'Agenda',
+    icon: CalendarDaysIcon,
+    iconSolid: CalendarDaysIconSolid,
+    description: 'Sua agenda de compromissos'
+  },
   { 
     href: '/playground', 
     label: 'Playground IA', 
@@ -74,11 +83,11 @@ const navItems = [
     description: 'Gestão de Leads e Pacientes'
   },
   { 
-    href: '/settings/profile', 
+    href: '/settings',
     label: 'Configurações', 
     icon: CogIcon, 
     iconSolid: CogIconSolid,
-    description: 'Configurações do perfil'
+    description: 'Ajustes e conexões da conta'
   },
 ];
 

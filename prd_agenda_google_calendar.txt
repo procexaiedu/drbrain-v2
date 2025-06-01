@@ -1,0 +1,70 @@
+Tarefa: Implementar Módulo de Agenda com Integração Google Calendar via OAuth2 (MVP)
+
+**Contexto Geral do Projeto (Referência PRD):**
+Você está trabalhando no Dr.Brain, uma plataforma SaaS para médicos (Frontend: Next.js, Backend: Supabase com Edge Functions). Módulos como Autenticação, Perfil, Admin, Onboarding, Playground, Prontuários, CRM e Feedback já foram implementados. A infraestrutura para OAuth2 com Google Calendar foi configurada no Google Cloud Console (Client ID, Client Secret, Redirect URIs) e os secrets correspondentes (`GOOGLE_CALENDAR_CLIENT_ID`, `GOOGLE_CALENDAR_CLIENT_SECRET`, `GOOGLE_CALENDAR_REDIRECT_URI_PROD`) foram adicionados aos Secrets do Supabase. Uma tabela `medico_oauth_tokens` foi criada no Supabase para armazenar os tokens OAuth2 de forma segura (associados ao `medico_id`).
+
+**Objetivo Específico desta Tarefa:**
+Desenvolver o Módulo de Agenda, permitindo que:
+1.  Médicos conectem sua conta Google Calendar ao Dr.Brain através de um fluxo OAuth2.
+2.  Visualizem, criem, editem e excluam eventos de seu calendário conectado diretamente na UI do Dr.Brain.
+3.  Utilizem uma funcionalidade para solicitar que a Secretária IA (N8N) contate um paciente/lead para agendamento.
+
+**Análise da Codebase Existente (Incentivo Forte):**
+Antes de implementar, analise os padrões de UI/UX, estrutura de componentes (especialmente o `AppContext` para estado global e títulos), chamadas de API (usando TanStack Query), tratamento de erros, e a forma como as Edge Functions são estruturadas (CORS, autenticação, uso de `supabaseAdmin`) nos módulos existentes para garantir consistência.
+
+**Detalhes da Implementação - Frontend (`frontend/`):**
+
+1.  **Seção de Conexão do Google Calendar (Ex: `frontend/app/(app)/settings/connections/page.tsx`):**
+    *   Criar uma nova página em Configurações para "Minhas Conexões".
+    *   Nesta página, exibir um card/item para "Google Calendar".
+    *   Mostrar o status da conexão (Conectado/Desconectado).
+    *   Botão "Conectar com Google Calendar":
+        *   Ao clicar, deve chamar um endpoint do BFF (`GET /edge/v1/auth/google/calendar/connect`) que redirecionará o navegador do usuário para a URL de consentimento do Google.
+    *   Botão "Desconectar" (se conectado): Chama um endpoint do BFF para revogar/remover os tokens.
+
+2.  **Página da Agenda (`frontend/app/(app)/agenda/page.tsx`):**
+    *   **Interface:**
+        *   Utilizar uma biblioteca de calendário robusta (ex: `FullCalendar` ou `React Big Calendar`) para exibir o calendário (visões Dia, Semana, Mês).
+        *   Botões de navegação (Anterior, Próximo, Hoje).
+        *   Botão "+ Novo Evento".
+        *   Botão "Contatar Paciente/Lead para Agendar".
+    *   **Funcionalidade:**
+        *   Ao carregar, buscar eventos do endpoint `GET /edge/v1/agenda/eventos` (BFF) para o período visível.
+        *   Permitir clicar em slots vazios ou no botão "+ Novo Evento" para abrir um modal/formulário de criação de evento.
+        *   Permitir clicar em eventos existentes para ver detalhes em um modal e ter opções de "Editar" e "Excluir".
+        *   **Formulário de Criação/Edição de Evento:** Campos para Título, Data/Hora Início/Fim, Descrição, Convidados (autocomplete do CRM para emails), Local, opção "Adicionar Videoconferência Google Meet". Chamar os respectivos endpoints do BFF (`POST` ou `PUT /edge/v1/agenda/eventos`).
+        *   **Excluir Evento:** Chamar `DELETE /edge/v1/agenda/eventos/{id}` com confirmação.
+    *   **Funcionalidade "Contatar Paciente/Lead para Agendar":**
+        *   Abre modal para selecionar Paciente/Lead (do CRM), Tipo de Mensagem/Objetivo, Observações.
+        *   Chama endpoint do BFF `POST /edge/v1/secretaria-ia/iniciar-contato-agendamento`.
+
+**Detalhes da Implementação - BFF (Supabase Edge Functions):**
+
+1.  **Fluxo OAuth2 para Google Calendar:**
+    *   **Função `google-calendar-auth-connect` (`GET /edge/v1/auth/google/calendar/connect`):**
+        *   Constrói a URL de autorização do Google OAuth2 usando `GOOGLE_CALENDAR_CLIENT_ID`, `GOOGLE_CALENDAR_REDIRECT_URI_PROD` (ou dev), e os `scopes` necessários (ex: `https://www.googleapis.com/auth/calendar.events`).
+        *   Retorna uma resposta de redirecionamento (302) para essa URL do Google.
+    *   **Função `google-calendar-auth-callback` (`GET /edge/v1/auth/google/calendar/callback` - Esta é a Redirect URI):**
+        *   Recebe o `code` (authorization code) do Google como query param.
+        *   Troca o `code` por `access_token` e `refresh_token` fazendo uma requisição POST para o endpoint de token do Google (usando `GOOGLE_CALENDAR_CLIENT_ID`, `GOOGLE_CALENDAR_CLIENT_SECRET`, `GOOGLE_CALENDAR_REDIRECT_URI_PROD`).
+        *   Obtém o `medico_id` do usuário autenticado (a sessão JWT do Dr.Brain deve ser mantida durante o redirect OAuth2, ou passada via parâmetro `state`).
+        *   **Armazena os tokens (access_token e refresh_token ENCRIPTADOS)** e `expires_at`, `scopes` na tabela `medico_oauth_tokens` associados ao `medico_id` e `provider='google_calendar'`. (Implementar lógica de encriptação/desencriptação para os tokens).
+        *   Redireciona o usuário de volta para uma página de sucesso/configurações no frontend.
+    *   **Função `google-calendar-disconnect` (`POST /edge/v1/auth/google/calendar/disconnect`):**
+        *   Remove/Invalida os tokens da tabela `medico_oauth_tokens` para o `medico_id`. Pode também tentar revogar o token no Google.
+
+2.  **Endpoints CRUD da Agenda (Proxy para Google Calendar API):**
+    *   Todos estes endpoints devem primeiro obter o `access_token` válido para o `medico_id` da tabela `medico_oauth_tokens`. Se o token estiver expirado, usar o `refresh_token` para obter um novo `access_token` do Google e atualizar os tokens no banco.
+    *   `GET /edge/v1/agenda/eventos` (Listar eventos, com query params `start_date`, `end_date`).
+    *   `POST /edge/v1/agenda/eventos` (Criar evento. No payload, incluir opção para `conferenceDataVersion: 1` para Google Meet).
+    *   `PUT /edge/v1/agenda/eventos/{evento_id_gcal}` (Atualizar evento).
+    *   `DELETE /edge/v1/agenda/eventos/{evento_id_gcal}` (Excluir evento).
+
+3.  **Endpoint para Iniciar Contato para Agendamento:**
+    *   `POST /edge/v1/secretaria-ia/iniciar-contato-agendamento`
+        *   Request Body: `{ paciente_lead_id: string, objetivo_contato: string, observacoes_medico: string }`.
+        *   Lógica: Obtém `medico_id`. Busca dados do contato no CRM (ex: número de WhatsApp). Constrói payload para o N8N. Chama o Webhook N8N "Contatar Paciente para Agendar" (URL de Secret).
+        *   Só me fale o nome da variável que será puxada para obter a URL do webhook que vou registrar o URL em secrets no painel do supabase
+
+**Foco da Tarefa:**
+Implementar o fluxo completo de conexão OAuth2 com o Google Calendar. Desenvolver a UI da agenda com funcionalidades CRUD completas, integradas com a API do Google Calendar através do BFF. Implementar a funcionalidade "Contatar Paciente/Lead para Agendar". Garantir que a experiência do usuário seja fluida e segura, e que os padrões de código e design do Dr.Brain sejam mantidos. Se precisar de alguma informação me peça, se precisar acrescentar algo me avise no final o que foi feito além do plano. 
