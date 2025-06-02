@@ -1082,6 +1082,7 @@ const AgendaPageContent = () => {
           </Transition>
         )}
       </div>
+      <GlobalCalendarStyles />
     </>
   );
 };
@@ -1094,4 +1095,174 @@ const AgendaPage = () => {
   );
 };
 
-export default AgendaPage; 
+export default AgendaPage;
+
+const GlobalCalendarStyles = () => (
+  <style jsx global>{`
+    /* Custom FullCalendar Styles using Tailwind análogo */
+
+    /* Toolbar Title */
+    .fc .fc-toolbar-title {
+      font-size: 1.5rem; /* Equivale a text-2xl */
+      font-weight: 600; /* Equivale a font-semibold */
+      color: #1f2937; /* gray-800 */
+    }
+    .dark .fc .fc-toolbar-title {
+      color: #f3f4f6; /* gray-100 */
+    }
+
+    /* Toolbar Buttons General */
+    .fc .fc-button {
+      background-color: #e5e7eb; /* gray-200 */
+      color: #374151; /* gray-700 */
+      border: 1px solid #d1d5db; /* gray-300 */
+      padding: 0.5rem 0.75rem; /* py-2 px-3 */
+      border-radius: 0.5rem; /* rounded-lg */
+      text-transform: capitalize;
+      font-weight: 500; /* medium */
+      transition: background-color 0.15s ease-in-out, border-color 0.15s ease-in-out;
+    }
+    .dark .fc .fc-button {
+      background-color: #4b5563; /* gray-600 */
+      color: #f3f4f6; /* gray-100 */
+      border-color: #6b7280; /* gray-500 */
+    }
+
+    .fc .fc-button:hover {
+      background-color: #d1d5db; /* gray-300 */
+      border-color: #9ca3af; /* gray-400 */
+    }
+    .dark .fc .fc-button:hover {
+      background-color: #6b7280; /* gray-500 */
+      border-color: #9ca3af; /* gray-400 */
+    }
+
+    .fc .fc-button:disabled {
+      background-color: #f3f4f6; /* gray-100 */
+      color: #9ca3af; /* gray-400 */
+      border-color: #e5e7eb; /* gray-200 */
+    }
+    .dark .fc .fc-button:disabled {
+      background-color: #374151; /* gray-700 */
+      color: #6b7280; /* gray-500 */
+      border-color: #4b5563; /* gray-600 */
+    }
+    
+    /* Active/Selected View Button */
+    .fc .fc-button-primary:not(:disabled).fc-button-active,
+    .fc .fc-button-primary:not(:disabled):active {
+      background-color: #4f46e5; /* indigo-600 */
+      color: white;
+      border-color: #4f46e5; /* indigo-600 */
+    }
+    .dark .fc .fc-button-primary:not(:disabled).fc-button-active,
+    .dark .fc .fc-button-primary:not(:disabled):active {
+      background-color: #6366f1; /* indigo-500 */
+      color: white;
+      border-color: #6366f1; /* indigo-500 */
+    }
+
+    /* Today Button - make it stand out a bit */
+    .fc .fc-today-button {
+      background-color: #c7d2fe; /* indigo-200 */
+      color: #3730a3; /* indigo-800 */
+      border-color: #a5b4fc; /* indigo-300 */
+    }
+    .dark .fc .fc-today-button {
+      background-color: #4338ca; /* indigo-700 */
+      color: #e0e7ff; /* indigo-100 */
+      border-color: #5c5ae5; /* indigo-600 */
+    }
+    .fc .fc-today-button:hover {
+      background-color: #a5b4fc; /* indigo-300 */
+      border-color: #818cf8; /* indigo-400 */
+    }
+    .dark .fc .fc-today-button:hover {
+      background-color: #5c5ae5; /* indigo-600 */
+      border-color: #4338ca; /* indigo-700 */
+    }
+    .fc .fc-today-button:disabled {
+        /* Use general disabled style */
+    }
+    .dark .fc .fc-today-button:disabled {
+        /* Use general disabled style */
+    }
+
+    /* Adjust spacing between button groups in toolbar */
+    .fc .fc-toolbar.fc-header-toolbar {
+      margin-bottom: 1.5rem; /* mb-6 */
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem; /* space-x-3 or space-y-3, applied with gap */
+    }
+    .fc .fc-toolbar-chunk {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem; /* space-x-2 or space-y-2 */
+    }
+
+    /* Calendar general border and background (viewClassNames also used) */
+    .fc {
+      border-radius: 0.5rem; /* rounded-lg */
+      overflow: hidden; /* to make border-radius work with internal elements */
+    }
+
+    /* Day headers */
+    .fc .fc-col-header-cell-cushion {
+      padding-top: 0.75rem; /* py-3 */
+      padding-bottom: 0.75rem;
+      font-size: 0.875rem; /* text-sm */
+      font-weight: 500; /* font-medium */
+      color: #6b7280; /* gray-500 */
+    }
+    .dark .fc .fc-col-header-cell-cushion {
+      color: #9ca3af; /* gray-400 */
+    }
+
+    /* Timegrid slot labels (e.g., 10:00 AM) */
+    .fc .fc-timegrid-slot-label-cushion {
+      font-size: 0.75rem; /* text-xs */
+      color: #6b7280; /* gray-500 */
+    }
+    .dark .fc .fc-timegrid-slot-label-cushion {
+      color: #9ca3af; /* gray-400 */
+    }
+    
+    .fc .fc-timegrid-slot {
+        height: 3.5em; /* Aumenta a altura dos slots de horário */
+    }
+
+    .fc .fc-timegrid-slot-lane {
+        border-color: #e5e7eb; /* gray-200 */
+    }
+    .dark .fc .fc-timegrid-slot-lane {
+        border-color: #374151; /* gray-700 */
+    }
+
+    /* DayGrid day numbers */
+    .fc .fc-daygrid-day-number {
+      font-size: 0.875rem; /* text-sm */
+      color: #374151; /* gray-700 */
+      padding: 0.25rem 0.375rem; /* similar to p-1 or p-1.5 */
+    }
+    .dark .fc .fc-daygrid-day-number {
+      color: #d1d5db; /* gray-300 */
+    }
+    .fc .fc-day-today .fc-daygrid-day-number {
+        background-color: #e0e7ff; /* indigo-100 */
+        border-radius: 9999px; /* rounded-full */
+        color: #3730a3; /* indigo-800 */
+        font-weight: 600;
+    }
+    .dark .fc .fc-day-today .fc-daygrid-day-number {
+        background-color: #3730a3; /* indigo-800 */
+        color: #e0e7ff; /* indigo-100 */
+    }
+
+    /* Remove default focus outline and use Tailwind's focus rings if needed elsewhere */
+    .fc .fc-button:focus {
+      box-shadow: none;
+    }
+
+  `}</style>
+); 
