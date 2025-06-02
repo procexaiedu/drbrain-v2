@@ -102,8 +102,11 @@ Deno.serve(async (req: Request) => {
     const googleTokens = await tokenResponse.json() as GoogleTokenResponse;
     console.log('callback: Tokens recebidos.');
 
-    const token_expires_at = Math.floor(Date.now() / 1000) + googleTokens.expires_in;
+    const token_expires_at_unix = Math.floor(Date.now() / 1000) + googleTokens.expires_in;
+    const token_expires_at_iso = new Date(token_expires_at_unix * 1000).toISOString();
     
+    const scopesArray = googleTokens.scope ? googleTokens.scope.split(' ') : [];
+
     const { error: dbError } = await supabaseAdmin
       .from('medico_oauth_tokens')
       .upsert({
@@ -111,8 +114,8 @@ Deno.serve(async (req: Request) => {
         provider: 'google_calendar',
         access_token: googleTokens.access_token,
         refresh_token: googleTokens.refresh_token,
-        expires_at: token_expires_at,
-        scopes: googleTokens.scope,
+        expires_at: token_expires_at_iso,
+        scopes: scopesArray,
         updated_at: new Date().toISOString(),
       }, { onConflict: 'medico_id, provider' });
 
