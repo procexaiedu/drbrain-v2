@@ -1108,7 +1108,7 @@ const GlobalCalendarStyles = () => (
       color: #1f2937; /* gray-800 */
     }
     .dark .fc .fc-toolbar-title {
-      color: #f3f4f6; /* gray-100 */
+      color: #f9fafb; /* gray-50, mais claro para melhor visibilidade no dark mode */
     }
 
     /* Toolbar Buttons General */
@@ -1160,6 +1160,17 @@ const GlobalCalendarStyles = () => (
       background-color: #6366f1; /* indigo-500 */
       color: white;
       border-color: #6366f1; /* indigo-500 */
+    }
+
+    /* Estilo para botões de visualização INATIVOS no modo escuro */
+    .dark .fc .fc-button-primary:not(.fc-button-active) {
+      background-color: #374151; /* gray-700 */
+      color: #d1d5db; /* gray-300 */
+      border-color: #4b5563; /* gray-600 */
+    }
+    .dark .fc .fc-button-primary:not(.fc-button-active):hover {
+      background-color: #4b5563; /* gray-600 */
+      border-color: #6b7280; /* gray-500 */
     }
 
     /* Today Button - make it stand out a bit */
@@ -1249,14 +1260,36 @@ const GlobalCalendarStyles = () => (
       color: #d1d5db; /* gray-300 */
     }
     .fc .fc-day-today .fc-daygrid-day-number {
-        background-color: #e0e7ff; /* indigo-100 */
+        background-color: #c7d2fe; /* indigo-200 */
         border-radius: 9999px; /* rounded-full */
         color: #3730a3; /* indigo-800 */
         font-weight: 600;
     }
     .dark .fc .fc-day-today .fc-daygrid-day-number {
-        background-color: #3730a3; /* indigo-800 */
-        color: #e0e7ff; /* indigo-100 */
+        background-color: #4f46e5; /* indigo-600 */
+        color: #eef2ff; /* indigo-50 */
+    }
+
+    /* Current day styling */
+    .fc .fc-day-today {
+        background-color: rgba(238, 242, 255, 0.5); /* indigo-100 com opacidade no modo claro */
+    }
+    .dark .fc .fc-day-today {
+        background-color: rgba(55, 48, 163, 0.3); /* indigo-800 com opacidade no modo escuro, mais sutil */
+    }
+
+    .fc .fc-day-today .fc-daygrid-day-number {
+        background-color: #c7d2fe; /* indigo-200 */
+        border-radius: 9999px; /* rounded-full */
+        color: #3730a3; /* indigo-800 */
+        font-weight: 600;
+        padding: 0.125rem 0.375rem; /* Ajuste fino no padding */
+        display: inline-block; /* Necessário para padding e border-radius corretos */
+        line-height: 1.25; /* Ajuste para centralização vertical */
+    }
+    .dark .fc .fc-day-today .fc-daygrid-day-number {
+        background-color: #4f46e5; /* indigo-600 */
+        color: #eef2ff; /* indigo-50 */
     }
 
     /* Remove default focus outline and use Tailwind's focus rings if needed elsewhere */
