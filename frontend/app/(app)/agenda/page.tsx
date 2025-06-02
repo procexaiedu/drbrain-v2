@@ -5,7 +5,7 @@ import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin, { DateClickArg } from '@fullcalendar/interaction';
-import { EventInput, EventSourceInput, EventSourceFuncArg, EventApi, EventClickArg, FormatterInput } from '@fullcalendar/core';
+import { EventInput, EventSourceInput, EventSourceFuncArg, EventApi, EventClickArg } from '@fullcalendar/core';
 import { useApp } from '@/context/AppContext';
 import { useQuery, QueryClient, QueryClientProvider, useMutation, useQueryClient as useTanstackQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabaseClient';
@@ -13,7 +13,7 @@ import { Dialog, Transition } from '@headlessui/react';
 import { format, parseISO } from 'date-fns';
 import { Toaster, toast } from 'sonner';
 import { PlusIcon, UserPlusIcon, PencilIcon, TrashIcon, XMarkIcon, CalendarDaysIcon, VideoCameraIcon } from '@heroicons/react/24/outline';
-import { ChevronDownIcon, ChevronUpIcon } from '@heroicons/react/20/solid'; // Para selects, se necessário
+import PatientSelect from '@/components/ui/PatientSelect';
 
 // --- Interfaces --- 
 interface CalendarEvent extends EventInput {
@@ -38,9 +38,15 @@ interface EventFormData {
 }
 
 interface ContactFormData {
-  patientId: string; // Alterado para ID, assumindo que PatientSelect retornará um ID
+  patientId: string;
   reason: string;
-  // patientName e patientPhone seriam buscados com base no patientId ou passados separadamente se necessário
+}
+
+interface PatientForSelect {
+  id: string;
+  nome_completo: string;
+  cpf: string;
+  data_cadastro_paciente: string;
 }
 
 // --- Configurações Globais --- 
@@ -185,16 +191,16 @@ const AgendaPageContent = () => {
   const [editEventForm, setEditEventForm] = useState<EventFormData | null>(null);
   const [isEditingEvent, setIsEditingEvent] = useState(false);
   const [contactFormData, setContactFormData] = useState<ContactFormData>({ patientId: '', reason: '' });
+  const [selectedPatientForContact, setSelectedPatientForContact] = useState<PatientForSelect | null>(null);
 
-  const [isSubmittingModal, setIsSubmittingModal] = useState(false); // Estado de loading para botões de submissão dos modais
+  const [isSubmittingModal, setIsSubmittingModal] = useState(false);
 
   useEffect(() => { setPageTitle('Minha Agenda'); }, [setPageTitle]);
 
   // --- TanStack Queries e Mutations --- 
-  const { data: events, isLoading: isLoadingEvents, error: eventsError, refetch: refetchCalendarEvents } = useQuery<CalendarEvent[], Error>({
-    queryKey: ['agendaEvents'],
-    queryFn: () => fetchAgendaEvents(), // Para carga inicial e refetch manual
-    // staleTime: 5 * 60 * 1000, // Exemplo: Cache por 5 minutos
+  const { data: initialEvents, isLoading: isLoadingEvents, error: eventsError, refetch: refetchCalendarEvents } = useQuery<CalendarEvent[], Error>({
+    queryKey: ['initialAgendaEvents'],
+    queryFn: () => fetchAgendaEvents(),
   });
 
   const eventSourceFunc: EventSourceInput = useCallback(async (
@@ -215,7 +221,7 @@ const AgendaPageContent = () => {
     mutationFn: createAgendaEventAPI,
     onSuccess: (data) => {
       toast.success('Evento criado com sucesso!');
-      tanstackQueryClient.invalidateQueries({ queryKey: ['agendaEvents'] });
+      tanstackQueryClient.invalidateQueries({ queryKey: ['initialAgendaEvents'] });
       calendarRef.current?.getApi().refetchEvents();
       setIsCreateModalOpen(false);
       setNewEventForm({ summary: '', start: '', end: '', description: '', addGoogleMeet: false });
@@ -232,7 +238,7 @@ const AgendaPageContent = () => {
     mutationFn: updateAgendaEventAPI,
     onSuccess: (data, variables) => {
       toast.success('Evento atualizado com sucesso!');
-      tanstackQueryClient.invalidateQueries({ queryKey: ['agendaEvents'] });
+      tanstackQueryClient.invalidateQueries({ queryKey: ['initialAgendaEvents'] });
       calendarRef.current?.getApi().refetchEvents();
       setIsViewEditModalOpen(false);
       setIsEditingEvent(false);
@@ -249,9 +255,10 @@ const AgendaPageContent = () => {
     mutationFn: deleteAgendaEventAPI,
     onSuccess: () => {
       toast.success('Evento excluído com sucesso!');
-      tanstackQueryClient.invalidateQueries({ queryKey: ['agendaEvents'] });
+      tanstackQueryClient.invalidateQueries({ queryKey: ['initialAgendaEvents'] });
       calendarRef.current?.getApi().refetchEvents();
       setIsViewEditModalOpen(false);
+      setSelectedEvent(null);
     },
     onError: (error) => {
       toast.error(`Falha ao excluir evento: ${error.message}`);
@@ -276,7 +283,7 @@ const AgendaPageContent = () => {
   // --- Handlers de Interação do Calendário e Modais --- 
   const handleDateClick = (arg: DateClickArg) => {
     const defaultStartTime = format(arg.date, 'yyyy-MM-dd\'T\'HH:mm');
-    const defaultEndTime = format(new Date(arg.date.getTime() + 60 * 60 * 1000), 'yyyy-MM-dd\'T\'HH:mm'); // Adiciona 1 hora
+    const defaultEndTime = format(new Date(arg.date.getTime() + 60 * 60 * 1000), 'yyyy-MM-dd\'T\'HH:mm');
     setNewEventForm({ 
         summary: '', 
         start: defaultStartTime, 
@@ -302,13 +309,13 @@ const AgendaPageContent = () => {
     });
     setEditEventForm({
       summary: event.title,
-      start: format(parseISO(event.startStr), "yyyy-MM-dd'T'HH:mm"), // Formatar para datetime-local
+      start: format(parseISO(event.startStr), "yyyy-MM-dd'T'HH:mm"),
       end: event.endStr ? format(parseISO(event.endStr), "yyyy-MM-dd'T'HH:mm") : '',
       description: event.extendedProps.description || '',
-      addGoogleMeet: !!event.extendedProps.gmeetLink, // ou event.extendedProps.location
+      addGoogleMeet: !!event.extendedProps.gmeetLink,
       location: event.extendedProps.location
     });
-    setIsEditingEvent(false); // Inicia em modo de visualização
+    setIsEditingEvent(false);
     setIsViewEditModalOpen(true);
   };
   
@@ -324,15 +331,13 @@ const AgendaPageContent = () => {
         summary: event.title,
         start: event.startStr,
         end: event.endStr,
-        // addGoogleMeet e description não são alterados por drag/resize diretamente
     };
     try {
-        setIsSubmittingModal(true); // Indicar loading global ou específico do calendário
+        setIsSubmittingModal(true);
         await updateEventMutation.mutateAsync({ eventId: event.id, eventData: updatedEventData });
-        // toast já é tratado no onSuccess da mutação
     } catch (error: any) {
         toast.error(`Falha ao mover/redimensionar evento: ${error.message}`);
-        changeInfo.revert(); // Reverte a alteração no calendário em caso de erro
+        changeInfo.revert();
     } finally {
         setIsSubmittingModal(false);
     }
@@ -349,6 +354,11 @@ const AgendaPageContent = () => {
   };
   const handleContactFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     setContactFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
+  };
+
+  const handlePatientSelectedForContact = (patient: PatientForSelect) => {
+    setSelectedPatientForContact(patient);
+    setContactFormData(prev => ({ ...prev, patientId: patient.id }));
   };
 
   const handleCreateEventSubmit = (e: React.FormEvent) => {
@@ -392,21 +402,31 @@ const AgendaPageContent = () => {
   };
 
   const handleDeleteCurrentEvent = () => {
-    if (!selectedEvent?.id) {
-      toast.error('Nenhum evento selecionado para excluir.');
+    if (!selectedEvent || typeof selectedEvent.id !== 'string') {
+      toast.error('Nenhum evento selecionado ou ID do evento inválido para excluir.');
       return;
     }
-    if (window.confirm(`Tem certeza que deseja excluir o evento "${selectedEvent.title}"?`)) {
-      deleteEventMutation.mutate(selectedEvent.id);
-    }
+
+    const eventId = selectedEvent.id;
+    const eventTitle = selectedEvent.title || "Evento sem título";
+
+    toast(`Tem certeza que deseja excluir o evento "${eventTitle}"?`, {
+      action: {
+        label: 'Excluir',
+        onClick: () => deleteEventMutation.mutate(eventId),
+      },
+      cancel: {
+        label: 'Cancelar',
+        onClick: () => {},
+      },
+      duration: Infinity,
+    });
   };
 
   const handleRequestContactSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!contactFormData.patientId || !contactFormData.reason) {
-      toast('Paciente e Motivo do contato são obrigatórios.', {
-        action: { label: 'Ok', onClick: () => {} }, 
-      });
+      toast.error('Paciente e Motivo do contato são obrigatórios.');
       return;
     }
     setIsSubmittingModal(true);
@@ -454,7 +474,6 @@ const AgendaPageContent = () => {
       <div className="p-4 md:p-6 lg:p-8 h-full flex flex-col bg-gray-50 dark:bg-gray-900">
         <header className="mb-6 pb-4 border-b border-gray-200 dark:border-gray-700">
           <div className="flex flex-col sm:flex-row justify-between items-center">
-            {/* Título omitido pois é gerenciado pelo AppContext */}
             <div className="flex items-center space-x-3 mt-4 sm:mt-0 w-full sm:w-auto justify-end">
               <button
                 type="button"
@@ -489,10 +508,10 @@ const AgendaPageContent = () => {
         </header>
 
         <main className="flex-grow min-h-0 bg-white dark:bg-gray-800 shadow-xl rounded-lg overflow-hidden p-1 sm:p-2 md:p-4">
-          {isLoadingEvents && (
+          {isLoadingEvents && !initialEvents && (
             <div className="flex items-center justify-center h-full">
-              <p className="text-gray-500 dark:text-gray-400 text-lg">Carregando agenda...</p>
-              {/* TODO: Adicionar um Skeleton Loader elegante aqui */}
+              <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-b-4 border-indigo-500"></div>
+              <p className="ml-4 text-gray-500 dark:text-gray-400 text-lg">Carregando agenda...</p>
             </div>
           )}
           {eventsError && (
@@ -507,7 +526,7 @@ const AgendaPageContent = () => {
               </button>
             </div>
           )}
-          {!isLoadingEvents && !eventsError && (
+          {(!isLoadingEvents || initialEvents) && !eventsError && (
             <FullCalendar
               ref={calendarRef}
               plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
@@ -516,7 +535,7 @@ const AgendaPageContent = () => {
                 center: 'title',
                 right: 'dayGridMonth,timeGridWeek,timeGridDay'
               }}
-              buttonText={{ today: 'Hoje', month: 'Mês', week: 'Semana', day: 'Dia', list: 'Lista' }}
+              buttonText={{ today: 'Hoje', month: 'Mês', week: 'Semana', day: 'Dia' }}
               locale='pt-br'
               initialView="timeGridWeek"
               editable={true}
@@ -532,8 +551,8 @@ const AgendaPageContent = () => {
               eventDrop={handleEventDropOrResize}
               eventResize={handleEventDropOrResize}
               eventContent={renderEventContent}
-              viewClassNames="bg-white dark:bg-gray-800 rounded-lg shadow"
-              eventClassNames="border-none rounded-lg shadow-sm"
+              viewClassNames="bg-white dark:bg-gray-800 rounded-lg shadow-md"
+              eventClassNames="border-none rounded-lg shadow-sm cursor-pointer hover:bg-indigo-50 dark:hover:bg-gray-700"
               buttonHints={{
                 prev: 'Mês anterior',
                 next: 'Próximo mês',
@@ -542,22 +561,516 @@ const AgendaPageContent = () => {
                 week: 'Visualizar semana',
                 day: 'Visualizar dia'
               }}
+              slotLabelFormat={{
+                hour: '2-digit',
+                minute: '2-digit',
+                omitZeroMinute: false,
+                meridiem: false,
+                hour12: false
+              }}
+              dayHeaderFormat={{ weekday: 'long' }}
             />
           )}
         </main>
 
-        {/* Modais (placeholders como antes) */}
-        {isCreateModalOpen && ( <div/>)}
-        {isViewEditModalOpen && ( <div/>)}
-        {isContactModalOpen && ( <div/>)}
+        {/* --- Modais --- */}
+        {/* Modal de Criação de Evento */}
+        <Transition appear show={isCreateModalOpen} as={Fragment}>
+          <Dialog as="div" className="relative z-30" onClose={() => setIsCreateModalOpen(false)}>
+            <Transition.Child
+              as={Fragment}
+              enter="ease-out duration-300"
+              enterFrom="opacity-0"
+              enterTo="opacity-100"
+              leave="ease-in duration-200"
+              leaveFrom="opacity-100"
+              leaveTo="opacity-0"
+            >
+              <div className="fixed inset-0 bg-black/30 backdrop-blur-sm" />
+            </Transition.Child>
+
+            <div className="fixed inset-0 overflow-y-auto">
+              <div className="flex min-h-full items-center justify-center p-4 text-center">
+                <Transition.Child
+                  as={Fragment}
+                  enter="ease-out duration-300"
+                  enterFrom="opacity-0 scale-95"
+                  enterTo="opacity-100 scale-100"
+                  leave="ease-in duration-200"
+                  leaveFrom="opacity-100 scale-100"
+                  leaveTo="opacity-0 scale-95"
+                >
+                  <Dialog.Panel className="w-full max-w-lg transform overflow-hidden rounded-2xl bg-white dark:bg-gray-800 p-6 text-left align-middle shadow-xl transition-all">
+                    {/* Header do Modal */}
+                    <div className="flex items-center justify-between pb-4 mb-6 border-b border-gray-200 dark:border-gray-700">
+                      <Dialog.Title
+                        as="h3"
+                        className="text-xl font-semibold leading-6 text-gray-900 dark:text-gray-100 flex items-center"
+                      >
+                        <CalendarDaysIcon className="h-6 w-6 mr-3 text-indigo-600 dark:text-indigo-400" />
+                        Criar Novo Agendamento
+                      </Dialog.Title>
+                      <button 
+                          onClick={() => setIsCreateModalOpen(false)} 
+                          className="p-1 rounded-md text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition-colors"
+                          aria-label="Fechar modal"
+                      >
+                          <XMarkIcon className="h-6 w-6" />
+                      </button>
+                    </div>
+                    
+                    <form onSubmit={handleCreateEventSubmit} className="space-y-6">
+                      <div>
+                        <label htmlFor="summary" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Título do Evento</label>
+                        <input
+                          type="text"
+                          name="summary"
+                          id="summary"
+                          value={newEventForm.summary}
+                          onChange={handleNewEventFormChange}
+                          required
+                          className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white sm:text-sm placeholder-gray-400 dark:placeholder-gray-500 transition-colors"
+                          placeholder="Ex: Reunião com Paciente X"
+                        />
+                      </div>
+                      
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-6">
+                        <div>
+                          <label htmlFor="start" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Início</label>
+                          <input
+                            type="datetime-local"
+                            name="start"
+                            id="start"
+                            value={newEventForm.start}
+                            onChange={handleNewEventFormChange}
+                            required
+                            className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white sm:text-sm transition-colors"
+                          />
+                        </div>
+                        <div>
+                          <label htmlFor="end" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Fim</label>
+                          <input
+                            type="datetime-local"
+                            name="end"
+                            id="end"
+                            value={newEventForm.end}
+                            onChange={handleNewEventFormChange}
+                            required
+                            className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white sm:text-sm transition-colors"
+                          />
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <label htmlFor="description" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Descrição (Opcional)</label>
+                        <textarea
+                          name="description"
+                          id="description"
+                          rows={3}
+                          value={newEventForm.description}
+                          onChange={handleNewEventFormChange}
+                          className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white sm:text-sm placeholder-gray-400 dark:placeholder-gray-500 transition-colors"
+                          placeholder="Detalhes adicionais sobre o evento..."
+                        />
+                      </div>
+                      
+                      <div className="flex items-center pt-2">
+                        <label htmlFor="addGoogleMeetCreateToggle" className="flex items-center cursor-pointer select-none">
+                          <div className="relative">
+                            <input 
+                              type="checkbox" 
+                              id="addGoogleMeetCreateToggle" 
+                              name="addGoogleMeet" 
+                              checked={newEventForm.addGoogleMeet}
+                              onChange={handleNewEventFormChange}
+                              className="sr-only peer"
+                            />
+                            <div className="block w-11 h-6 rounded-full bg-gray-300 dark:bg-gray-600 peer-checked:bg-indigo-600 transition-colors"></div>
+                            <div className="dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform peer-checked:translate-x-full"></div>
+                          </div>
+                          <div className="ml-3 text-sm text-gray-700 dark:text-gray-300 peer-checked:text-indigo-700 dark:peer-checked:text-indigo-300">
+                            Adicionar videoconferência Google Meet
+                          </div>
+                        </label>
+                      </div>
+
+                      <div className="pt-8 mt-2 border-t border-gray-200 dark:border-gray-700 flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-3 space-y-2 space-y-reverse sm:space-y-0">
+                         <button 
+                            type="button" 
+                            onClick={() => setIsCreateModalOpen(false)} 
+                            disabled={isSubmittingModal}
+                            className="w-full sm:w-auto inline-flex justify-center items-center px-4 py-2.5 text-sm font-medium text-gray-700 bg-white dark:bg-gray-600 dark:text-gray-200 border border-gray-300 dark:border-gray-500 rounded-lg shadow-sm hover:bg-gray-50 dark:hover:bg-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+                          >
+                            Cancelar
+                          </button>
+                         <button 
+                            type="submit" 
+                            disabled={isSubmittingModal}
+                            className="w-full sm:w-auto inline-flex justify-center items-center px-4 py-2.5 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          >
+                           {isSubmittingModal ? (
+                            <>
+                              <svg className="animate-spin -ml-1 mr-2.5 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                              </svg>
+                              Criando...
+                            </>
+                          ) : 'Criar Evento'}
+                         </button>
+                      </div>
+                    </form>
+                  </Dialog.Panel>
+                </Transition.Child>
+              </div>
+            </div>
+          </Dialog>
+        </Transition>
+
+        {/* Modal de Visualização/Edição de Evento */}
+        <Transition appear show={isViewEditModalOpen} as={Fragment}>
+          <Dialog as="div" className="relative z-30" onClose={closeViewEditModal}>
+            <Transition.Child
+              as={Fragment}
+              enter="ease-out duration-300"
+              enterFrom="opacity-0"
+              enterTo="opacity-100"
+              leave="ease-in duration-200"
+              leaveFrom="opacity-100"
+              leaveTo="opacity-0"
+            >
+              <div className="fixed inset-0 bg-black/30 backdrop-blur-sm" />
+            </Transition.Child>
+
+            <div className="fixed inset-0 overflow-y-auto">
+              <div className="flex min-h-full items-center justify-center p-4 text-center">
+                <Transition.Child
+                  as={Fragment}
+                  enter="ease-out duration-300"
+                  enterFrom="opacity-0 scale-95"
+                  enterTo="opacity-100 scale-100"
+                  leave="ease-in duration-200"
+                  leaveFrom="opacity-100 scale-100"
+                  leaveTo="opacity-0 scale-95"
+                >
+                  <Dialog.Panel className="w-full max-w-lg transform overflow-hidden rounded-2xl bg-white dark:bg-gray-800 p-6 text-left align-middle shadow-xl transition-all">
+                    <div className="flex items-center justify-between pb-4 mb-6 border-b border-gray-200 dark:border-gray-700">
+                      <Dialog.Title
+                        as="h3"
+                        className="text-xl font-semibold leading-6 text-gray-900 dark:text-gray-100 flex items-center"
+                      >
+                        {isEditingEvent ? (
+                           <><PencilIcon className="h-6 w-6 mr-3 text-indigo-600 dark:text-indigo-400" /> Editar Agendamento</>
+                        ) : (
+                           <><CalendarDaysIcon className="h-6 w-6 mr-3 text-indigo-600 dark:text-indigo-400" /> Detalhes do Agendamento</>
+                        )}
+                      </Dialog.Title>
+                       <button 
+                          onClick={closeViewEditModal} 
+                          className="p-1 rounded-md text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition-colors"
+                          aria-label="Fechar modal"
+                      >
+                          <XMarkIcon className="h-6 w-6" />
+                      </button>
+                    </div>
+
+                    {selectedEvent && (
+                      isEditingEvent && editEventForm ? (
+                        // --- MODO DE EDIÇÃO ---
+                        <form onSubmit={handleUpdateEventSubmit} className="space-y-6">
+                          <div>
+                            <label htmlFor="edit-summary" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Título do Evento</label>
+                            <input
+                              type="text"
+                              name="summary"
+                              id="edit-summary"
+                              value={editEventForm.summary}
+                              onChange={handleEditEventFormChange}
+                              required
+                              className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white sm:text-sm placeholder-gray-400 dark:placeholder-gray-500 transition-colors"
+                            />
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-6">
+                            <div>
+                              <label htmlFor="edit-start" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Início</label>
+                              <input
+                                type="datetime-local"
+                                name="start"
+                                id="edit-start"
+                                value={editEventForm.start}
+                                onChange={handleEditEventFormChange}
+                                required
+                                className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white sm:text-sm transition-colors"
+                              />
+                            </div>
+                            <div>
+                              <label htmlFor="edit-end" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Fim</label>
+                              <input
+                                type="datetime-local"
+                                name="end"
+                                id="edit-end"
+                                value={editEventForm.end}
+                                onChange={handleEditEventFormChange}
+                                required
+                                className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white sm:text-sm transition-colors"
+                              />
+                            </div>
+                          </div>
+                          <div>
+                            <label htmlFor="edit-description" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Descrição (Opcional)</label>
+                            <textarea
+                              name="description"
+                              id="edit-description"
+                              rows={3}
+                              value={editEventForm.description}
+                              onChange={handleEditEventFormChange}
+                              className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white sm:text-sm placeholder-gray-400 dark:placeholder-gray-500 transition-colors"
+                            />
+                          </div>
+                          <div className="flex items-center pt-2">
+                            <label htmlFor="addGoogleMeetEditToggle" className="flex items-center cursor-pointer select-none">
+                              <div className="relative">
+                                <input 
+                                  type="checkbox" 
+                                  id="addGoogleMeetEditToggle" 
+                                  name="addGoogleMeet" 
+                                  checked={editEventForm.addGoogleMeet}
+                                  onChange={handleEditEventFormChange}
+                                  className="sr-only peer"
+                                />
+                                <div className={`block w-11 h-6 rounded-full bg-gray-300 dark:bg-gray-600 peer-checked:bg-indigo-600 transition-colors`}></div>
+                                <div className={`dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform peer-checked:translate-x-full`}></div>
+                              </div>
+                              <div className="ml-3 text-sm text-gray-700 dark:text-gray-300 peer-checked:text-indigo-700 dark:peer-checked:text-indigo-300">
+                                Adicionar/Manter videoconferência Google Meet
+                              </div>
+                            </label>
+                          </div>
+                          <div className="pt-8 mt-2 border-t border-gray-200 dark:border-gray-700 flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-3 space-y-2 space-y-reverse sm:space-y-0">
+                            <button
+                              type="button"
+                              onClick={() => setIsEditingEvent(false)} 
+                              disabled={isSubmittingModal}
+                              className="w-full sm:w-auto inline-flex justify-center items-center px-4 py-2.5 text-sm font-medium text-gray-700 bg-white dark:bg-gray-600 dark:text-gray-200 border border-gray-300 dark:border-gray-500 rounded-lg shadow-sm hover:bg-gray-50 dark:hover:bg-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+                            >
+                              Cancelar Edição
+                            </button>
+                            <button
+                              type="submit"
+                              disabled={isSubmittingModal}
+                              className="w-full sm:w-auto inline-flex justify-center items-center px-4 py-2.5 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            >
+                              {isSubmittingModal ? (
+                                <>
+                                  <svg className="animate-spin -ml-1 mr-2.5 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                  </svg>
+                                  Salvando...
+                                </> 
+                              ) : 'Salvar Alterações'}
+                            </button>
+                          </div>
+                        </form>
+                      ) : (
+                        // --- MODO DE VISUALIZAÇÃO ---
+                        <div className="space-y-5">
+                          <dl className="space-y-4 divide-y divide-gray-200 dark:divide-gray-700">
+                            <div className="pt-4 first:pt-0">
+                              <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Título</dt>
+                              <dd className="mt-1 text-md font-semibold text-gray-900 dark:text-gray-100">{selectedEvent.title}</dd>
+                            </div>
+                            <div className="pt-4 grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
+                              <div>
+                                <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Início</dt>
+                                <dd className="mt-1 text-sm text-gray-900 dark:text-gray-100">
+                                  {selectedEvent.start ? format(parseISO(selectedEvent.start.toString()), "dd/MM/yyyy 'às' HH:mm") : 'N/A'}
+                                </dd>
+                              </div>
+                              <div>
+                                <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Fim</dt>
+                                <dd className="mt-1 text-sm text-gray-900 dark:text-gray-100">
+                                  {selectedEvent.end ? format(parseISO(selectedEvent.end.toString()), "dd/MM/yyyy 'às' HH:mm") : 'N/A'}
+                                </dd>
+                              </div>
+                            </div>
+                            {selectedEvent.description && (
+                              <div className="pt-4">
+                                <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Descrição</dt>
+                                <dd className="mt-1 text-sm text-gray-900 dark:text-gray-100 whitespace-pre-wrap break-words">{selectedEvent.description}</dd>
+                              </div>
+                            )}
+                            {selectedEvent.gmeetLink && (
+                              <div className="pt-4">
+                                <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Videoconferência</dt>
+                                <dd className="mt-1 text-sm">
+                                  <a href={selectedEvent.gmeetLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-x-1.5 text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 hover:underline font-medium">
+                                    <VideoCameraIcon className="h-5 w-5"/>
+                                    Entrar na chamada Google Meet
+                                  </a>
+                                </dd>
+                              </div>
+                            )}
+                             {selectedEvent.location && !selectedEvent.gmeetLink && (
+                              <div className="pt-4">
+                                <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Local/Link Adicional</dt>
+                                <dd className="mt-1 text-sm text-gray-900 dark:text-gray-100 whitespace-pre-wrap break-words">{selectedEvent.location}</dd>
+                              </div>
+                            )}
+                          </dl>
+                          <div className="pt-6 mt-5 border-t border-gray-200 dark:border-gray-700 flex flex-col-reverse sm:flex-row sm:justify-end space-y-2 sm:space-y-0 sm:space-x-3">
+                            <button
+                              type="button"
+                              onClick={handleDeleteCurrentEvent}
+                              disabled={isSubmittingModal || deleteEventMutation.isPending}
+                              className="w-full sm:w-auto inline-flex justify-center items-center px-4 py-2.5 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 dark:focus:ring-offset-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            >
+                              {deleteEventMutation.isPending ? (
+                                <>
+                                 <svg className="animate-spin -ml-1 mr-2.5 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                  </svg>
+                                  Excluindo...
+                                </> 
+                              ) : <><TrashIcon className="-ml-0.5 mr-1.5 h-5 w-5" />Excluir</>}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setIsEditingEvent(true)}
+                              disabled={isSubmittingModal}
+                              className="w-full sm:w-auto inline-flex justify-center items-center px-4 py-2.5 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+                            >
+                              <PencilIcon className="-ml-0.5 mr-1.5 h-5 w-5" />
+                              Editar
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    )}
+                  </Dialog.Panel>
+                </Transition.Child>
+              </div>
+            </div>
+          </Dialog>
+        </Transition>
+
+        {/* Modal de Contatar Paciente */}
+        {isContactModalOpen && (
+          <Transition appear show={isContactModalOpen} as={Fragment}>
+            <Dialog as="div" className="relative z-30" onClose={() => setIsContactModalOpen(false)}>
+              <Transition.Child
+                as={Fragment}
+                enter="ease-out duration-300"
+                enterFrom="opacity-0"
+                enterTo="opacity-100"
+                leave="ease-in duration-200"
+                leaveFrom="opacity-100"
+                leaveTo="opacity-0"
+              >
+                <div className="fixed inset-0 bg-black/30 backdrop-blur-sm" />
+              </Transition.Child>
+
+              <div className="fixed inset-0 overflow-y-auto">
+                <div className="flex min-h-full items-center justify-center p-4 text-center">
+                  <Transition.Child
+                    as={Fragment}
+                    enter="ease-out duration-300"
+                    enterFrom="opacity-0 scale-95"
+                    enterTo="opacity-100 scale-100"
+                    leave="ease-in duration-200"
+                    leaveFrom="opacity-100 scale-100"
+                    leaveTo="opacity-0 scale-95"
+                  >
+                    <Dialog.Panel className="w-full max-w-lg transform overflow-hidden rounded-2xl bg-white dark:bg-gray-800 p-6 text-left align-middle shadow-xl transition-all">
+                      {/* Header do Modal */}
+                      <div className="flex items-center justify-between pb-4 mb-6 border-b border-gray-200 dark:border-gray-700">
+                        <Dialog.Title
+                          as="h3"
+                          className="text-xl font-semibold leading-6 text-gray-900 dark:text-gray-100 flex items-center"
+                        >
+                          <UserPlusIcon className="h-6 w-6 mr-3 text-blue-600 dark:text-blue-400" />
+                          Solicitar Contato com Paciente/Lead
+                        </Dialog.Title>
+                        <button 
+                            onClick={() => setIsContactModalOpen(false)} 
+                            className="p-1 rounded-md text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition-colors"
+                            aria-label="Fechar modal"
+                        >
+                            <XMarkIcon className="h-6 w-6" />
+                        </button>
+                      </div>
+                      
+                      {/* Formulário */}
+                      <form onSubmit={handleRequestContactSubmit} className="space-y-6">
+                        <div>
+                          <label htmlFor="patientIdSelect" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                            Paciente/Lead
+                          </label>
+                          <PatientSelect 
+                            selectedPatient={selectedPatientForContact}
+                            onPatientSelect={(patient) => handlePatientSelectedForContact(patient as PatientForSelect)}
+                            onNewPatient={() => {
+                              toast.info('Funcionalidade "Novo Paciente" a ser implementada.');
+                            }}
+                            disabled={isSubmittingModal}
+                          />
+                        </div>
+                       
+                        <div>
+                          <label htmlFor="reason" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Motivo do Contato</label>
+                          <textarea
+                            name="reason"
+                            id="reason"
+                            rows={4}
+                            value={contactFormData.reason}
+                            onChange={handleContactFormChange}
+                            required
+                            className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white sm:text-sm placeholder-gray-400 dark:placeholder-gray-500 transition-colors"
+                            placeholder="Ex: Confirmar consulta, reagendar, novo paciente interessado..."
+                          />
+                        </div>
+
+                        {/* Footer do Modal */}
+                        <div className="pt-8 mt-2 border-t border-gray-200 dark:border-gray-700 flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-3 space-y-2 space-y-reverse sm:space-y-0">
+                          <button
+                            type="button"
+                            onClick={() => setIsContactModalOpen(false)}
+                            disabled={isSubmittingModal}
+                            className="w-full sm:w-auto inline-flex justify-center items-center px-4 py-2.5 text-sm font-medium text-gray-700 bg-white dark:bg-gray-600 dark:text-gray-200 border border-gray-300 dark:border-gray-500 rounded-lg shadow-sm hover:bg-gray-50 dark:hover:bg-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+                          >
+                            Cancelar
+                          </button>
+                          <button
+                            type="submit"
+                            disabled={isSubmittingModal || requestContactMutation.isPending}
+                            className="w-full sm:w-auto inline-flex justify-center items-center px-4 py-2.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:focus:ring-offset-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          >
+                            {requestContactMutation.isPending ? (
+                               <>
+                                <svg className="animate-spin -ml-1 mr-2.5 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                Solicitando...
+                              </> 
+                            ) : 'Solicitar Contato'}
+                          </button>
+                        </div>
+                      </form>
+                    </Dialog.Panel>
+                  </Transition.Child>
+                </div>
+              </div>
+            </Dialog>
+          </Transition>
+        )}
       </div>
     </>
   );
 };
 
-// --- Componente Wrapper da Página e Provedor React Query --- 
 const AgendaPage = () => {
-  // queryClientInstance é definido fora para não ser recriado em cada render
   return (
     <QueryClientProvider client={queryClientInstance}>
       <AgendaPageContent />
