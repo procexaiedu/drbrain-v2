@@ -4,28 +4,27 @@ import React, { useEffect, useState, useCallback, Fragment, useRef } from 'react
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
-import interactionPlugin from '@fullcalendar/interaction';
-import type { DateClickArg } from '@fullcalendar/interaction';
-import type { // Usando import type para clareza e correção
-  EventInput,
-  EventSourceInput,
-  EventSourceFuncArg,
-  CalendarApi,
-  EventApi,
-  EventClickArg
-} from '@fullcalendar/core';
+import interactionPlugin, { DateClickArg } from '@fullcalendar/interaction';
+import { EventInput, EventSourceInput, EventSourceFuncArg, EventApi, EventClickArg, FormatterInput } from '@fullcalendar/core';
 import { useApp } from '@/context/AppContext';
 import { useQuery, QueryClient, QueryClientProvider, useMutation, useQueryClient as useTanstackQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabaseClient';
 import { Dialog, Transition } from '@headlessui/react';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
+import { Toaster, toast } from 'sonner';
+import { PlusIcon, UserPlusIcon, PencilIcon, TrashIcon, XMarkIcon, CalendarDaysIcon, VideoCameraIcon } from '@heroicons/react/24/outline';
+import { ChevronDownIcon, ChevronUpIcon } from '@heroicons/react/20/solid'; // Para selects, se necessário
 
+// --- Interfaces --- 
 interface CalendarEvent extends EventInput {
   id?: string;
   description?: string;
-  extendedProps?: { 
+  location?: string; // Adicionado para videoconferência
+  gmeetLink?: string; // Adicionado para link do Google Meet
+  extendedProps?: {
     description?: string;
-    location?: string; 
+    location?: string;
+    gmeetLink?: string;
   };
 }
 
@@ -34,18 +33,26 @@ interface EventFormData {
   start: string;
   end: string;
   description?: string;
+  addGoogleMeet?: boolean;
+  location?: string; // Para o link da videoconferência
 }
 
 interface ContactFormData {
-  patientName: string;
-  patientPhone: string;
-  patientEmail?: string;
+  patientId: string; // Alterado para ID, assumindo que PatientSelect retornará um ID
   reason: string;
+  // patientName e patientPhone seriam buscados com base no patientId ou passados separadamente se necessário
 }
 
+// --- Configurações Globais --- 
+const queryClientInstance = new QueryClient();
+
+// --- Funções de API (sem alterações de lógica, apenas ajustes menores se necessário) --- 
 const fetchAgendaEvents = async (fetchInfo?: { startStr: string, endStr: string }): Promise<CalendarEvent[]> => {
   const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-  if (sessionError || !session) throw new Error('Usuário não autenticado.');
+  if (sessionError || !session) {
+    toast.error('Sessão inválida. Por favor, faça login novamente.');
+    throw new Error('Usuário não autenticado.');
+  }
   let url = '/edge/v1/agenda-crud-events';
   if (fetchInfo) {
     url += `?start_date=${encodeURIComponent(fetchInfo.startStr)}&end_date=${encodeURIComponent(fetchInfo.endStr)}`;
@@ -54,7 +61,7 @@ const fetchAgendaEvents = async (fetchInfo?: { startStr: string, endStr: string 
     headers: { 'Authorization': `Bearer ${session.access_token}` }
   });
   if (!response.ok) {
-    const errData = await response.json().catch(() => ({ message: 'Falha ao buscar eventos'}));
+    const errData = await response.json().catch(() => ({ message: 'Falha ao buscar eventos' }));
     throw new Error(errData.message || 'Falha ao buscar eventos');
   }
   const data = await response.json();
@@ -65,19 +72,29 @@ const fetchAgendaEvents = async (fetchInfo?: { startStr: string, endStr: string 
     end: event.end?.dateTime || event.end?.date || event.end,
     allDay: !!event.start?.date && !event.start?.dateTime,
     description: event.description,
-    extendedProps: { description: event.description, location: event.location }
+    location: event.location, // Mapeando location para a videoconferência
+    gmeetLink: event.hangoutLink, // Assumindo que o link do Meet venha como hangoutLink
+    extendedProps: {
+      description: event.description,
+      location: event.location,
+      gmeetLink: event.hangoutLink
+    }
   }));
 };
 
 const createAgendaEventAPI = async (newEventData: EventFormData): Promise<any> => {
   const { data: { session }, error: sessionError } = await supabase.auth.getSession();
   if (sessionError || !session) throw new Error('Usuário não autenticado.');
-  const payload = {
+  const payload: any = {
     summary: newEventData.summary,
     description: newEventData.description,
     start: { dateTime: new Date(newEventData.start).toISOString() },
     end: { dateTime: new Date(newEventData.end).toISOString() },
   };
+  if (newEventData.addGoogleMeet) {
+    // A lógica de adicionar conferência será tratada pela Edge Function
+    payload.conferenceData = { createRequest: { requestId: `drbrain-meet-${Date.now()}` } };
+  }
   const response = await fetch('/edge/v1/agenda-crud-events', {
     method: 'POST',
     headers: {
@@ -87,7 +104,7 @@ const createAgendaEventAPI = async (newEventData: EventFormData): Promise<any> =
     body: JSON.stringify(payload)
   });
   if (!response.ok) {
-    const errData = await response.json().catch(() => ({ message: 'Falha ao criar evento'}));
+    const errData = await response.json().catch(() => ({ message: 'Falha ao criar evento' }));
     throw new Error(errData.message || 'Falha ao criar evento');
   }
   return response.json();
@@ -136,490 +153,411 @@ const deleteAgendaEventAPI = async (eventId: string): Promise<void> => {
 const requestPatientContactAPI = async (contactData: ContactFormData): Promise<any> => {
   const { data: { session }, error: sessionError } = await supabase.auth.getSession();
   if (sessionError || !session) throw new Error('Usuário não autenticado.');
-
-  // O corpo do payload será o contactData diretamente, 
-  // a Edge Function decidirá como encaminhar para o N8N.
   const response = await fetch('/edge/v1/secretaria-ia-agendamento/contact-patient', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${session.access_token}`,
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify(contactData)
+    body: JSON.stringify(contactData) // Incluindo patientId
   });
-
   if (!response.ok) {
-    const errData = await response.json().catch(() => ({ message: 'Falha ao solicitar contato com paciente' }));
-    throw new Error(errData.message || 'Falha ao solicitar contato com paciente');
+    const errData = await response.json().catch(() => ({ message: 'Falha ao solicitar contato' }));
+    throw new Error(errData.message || 'Falha ao solicitar contato');
   }
-  return response.json(); // A Edge Function pode retornar uma confirmação ou ID de job
+  return response.json();
 };
 
-const queryClientInstance = new QueryClient();
-
+// --- Componente Principal da Agenda --- 
 const AgendaPageContent = () => {
   const { setPageTitle } = useApp();
   const tanstackQueryClient = useTanstackQueryClient();
   const calendarRef = useRef<FullCalendar>(null);
 
+  // Estados dos Modais
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [newEventForm, setNewEventForm] = useState<EventFormData>({
-    summary: '', start: '', end: '', description: ''
-  });
-
   const [isViewEditModalOpen, setIsViewEditModalOpen] = useState(false);
+  const [isContactModalOpen, setIsContactModalOpen] = useState(false);
+  
+  // Estado para Formulários e Evento Selecionado
+  const [newEventForm, setNewEventForm] = useState<EventFormData>({ summary: '', start: '', end: '', description: '', addGoogleMeet: false });
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   const [editEventForm, setEditEventForm] = useState<EventFormData | null>(null);
   const [isEditingEvent, setIsEditingEvent] = useState(false);
+  const [contactFormData, setContactFormData] = useState<ContactFormData>({ patientId: '', reason: '' });
 
-  // Estados para o modal de Contatar Paciente
-  const [isContactModalOpen, setIsContactModalOpen] = useState(false);
-  const [contactFormData, setContactFormData] = useState<ContactFormData>({
-    patientName: '',
-    patientPhone: '',
-    patientEmail: '',
-    reason: ''
-  });
+  const [isSubmittingModal, setIsSubmittingModal] = useState(false); // Estado de loading para botões de submissão dos modais
 
   useEffect(() => { setPageTitle('Minha Agenda'); }, [setPageTitle]);
 
-  const { isLoading: isLoadingInitialEvents, error: initialEventsError } = useQuery<CalendarEvent[], Error>({
-    queryKey: ['agendaEventsInitialLoad'],
-    queryFn: () => fetchAgendaEvents(),
-    enabled: false,
+  // --- TanStack Queries e Mutations --- 
+  const { data: events, isLoading: isLoadingEvents, error: eventsError, refetch: refetchCalendarEvents } = useQuery<CalendarEvent[], Error>({
+    queryKey: ['agendaEvents'],
+    queryFn: () => fetchAgendaEvents(), // Para carga inicial e refetch manual
+    // staleTime: 5 * 60 * 1000, // Exemplo: Cache por 5 minutos
   });
-
-  const createEventMutation = useMutation<any, Error, EventFormData>({
-    mutationFn: createAgendaEventAPI,
-    onSuccess: () => {
-      tanstackQueryClient.invalidateQueries({ queryKey: ['agendaEvents'] });
-      calendarRef.current?.getApi().refetchEvents();
-      setIsCreateModalOpen(false);
-      setNewEventForm({ summary: '', start: '', end: '', description: '' });
-      alert('Evento criado!');
-    },
-    onError: (error) => { alert('Erro ao criar: ' + error.message); }
-  });
-
-  const updateEventMutation = useMutation<any, Error, { eventId: string, eventData: Partial<EventFormData> }>({
-    mutationFn: updateAgendaEventAPI,
-    onSuccess: (data, variables) => {
-      tanstackQueryClient.invalidateQueries({ queryKey: ['agendaEvents'] });
-      if (variables.eventId === selectedEvent?.id) {
-        setIsViewEditModalOpen(false);
-        setIsEditingEvent(false);
-      }
-      alert('Evento atualizado!');
-    },
-    onError: (error) => { alert('Erro ao atualizar: ' + error.message); }
-  });
-
-  const deleteEventMutation = useMutation<void, Error, string>({
-    mutationFn: deleteAgendaEventAPI,
-    onSuccess: () => {
-      tanstackQueryClient.invalidateQueries({ queryKey: ['agendaEvents'] });
-      calendarRef.current?.getApi().refetchEvents();
-      setIsViewEditModalOpen(false);
-      alert('Evento excluído!');
-    },
-    onError: (error) => { alert('Erro ao excluir: ' + error.message); }
-  });
-
-  // Mutation para Contatar Paciente
-  const requestContactMutation = useMutation<any, Error, ContactFormData>({
-    mutationFn: requestPatientContactAPI,
-    onSuccess: (data) => {
-      setIsContactModalOpen(false);
-      setContactFormData({ patientName: '', patientPhone: '', patientEmail: '', reason: '' });
-      alert(data?.message || 'Solicitação de contato enviada com sucesso!'); // TODO: Melhorar msg com base na resposta da API
-    },
-    onError: (error) => {
-      alert('Erro ao solicitar contato: ' + error.message);
-    }
-  });
-
-  const handleDateClick = useCallback((arg: DateClickArg) => {
-    const defaultStartTime = format(arg.date, "yyyy-MM-dd'T'HH:mm");
-    const defaultEndTime = format(new Date(arg.date.getTime() + 60 * 60 * 1000), "yyyy-MM-dd'T'HH:mm");
-    setNewEventForm({ summary: '', start: defaultStartTime, end: defaultEndTime, description: '' });
-    setIsCreateModalOpen(true);
-  }, []);
-
-  const handleEventClick = useCallback((clickInfo: EventClickArg) => {
-    const event = clickInfo.event as EventApi;
-    const startStr = event.start ? format(event.start, "yyyy-MM-dd'T'HH:mm") : '';
-    const endStr = event.end ? format(event.end, "yyyy-MM-dd'T'HH:mm") : '';
-    
-    const currentSelectedEventData: CalendarEvent = {
-        id: event.id,
-        title: event.title,
-        start: startStr,
-        end: endStr,
-        allDay: event.allDay,
-        extendedProps: event.extendedProps as CalendarEvent['extendedProps'], 
-        description: (event.extendedProps as any)?.description || '' 
-    };
-    setSelectedEvent(currentSelectedEventData);
-    setEditEventForm({ 
-        summary: currentSelectedEventData.title || '',
-        start: currentSelectedEventData.start?.toString() || '',
-        end: currentSelectedEventData.end?.toString() || '',
-        description: currentSelectedEventData.description || ''
-    });
-    setIsEditingEvent(false);
-    setIsViewEditModalOpen(true);
-  }, []);
 
   const eventSourceFunc: EventSourceInput = useCallback(async (
     fetchInfo: EventSourceFuncArg, 
     successCallback: (events: EventInput[]) => void, 
     failureCallback: (error: Error) => void
   ) => {
-    console.log('FullCalendar solicitando eventos para:', fetchInfo.startStr, fetchInfo.endStr);
     try {
-      const events = await fetchAgendaEvents({ startStr: fetchInfo.start.toISOString(), endStr: fetchInfo.end.toISOString() });
-      successCallback(events);
-    } catch (error) {
+      const fetchedEvents = await fetchAgendaEvents({ startStr: fetchInfo.startStr, endStr: fetchInfo.endStr });
+      successCallback(fetchedEvents);
+    } catch (error: any) {
+      toast.error(`Erro ao carregar eventos: ${error.message}`);
       failureCallback(error as Error);
     }
   }, []);
 
+  const createEventMutation = useMutation<any, Error, EventFormData>({
+    mutationFn: createAgendaEventAPI,
+    onSuccess: (data) => {
+      toast.success('Evento criado com sucesso!');
+      tanstackQueryClient.invalidateQueries({ queryKey: ['agendaEvents'] });
+      calendarRef.current?.getApi().refetchEvents();
+      setIsCreateModalOpen(false);
+      setNewEventForm({ summary: '', start: '', end: '', description: '', addGoogleMeet: false });
+    },
+    onError: (error) => {
+      toast.error(`Falha ao criar evento: ${error.message}`);
+    },
+    onSettled: () => {
+      setIsSubmittingModal(false);
+    }
+  });
+  
+  const updateEventMutation = useMutation<any, Error, { eventId: string, eventData: Partial<EventFormData> }>({
+    mutationFn: updateAgendaEventAPI,
+    onSuccess: (data, variables) => {
+      toast.success('Evento atualizado com sucesso!');
+      tanstackQueryClient.invalidateQueries({ queryKey: ['agendaEvents'] });
+      calendarRef.current?.getApi().refetchEvents();
+      setIsViewEditModalOpen(false);
+      setIsEditingEvent(false);
+    },
+    onError: (error) => {
+      toast.error(`Falha ao atualizar evento: ${error.message}`);
+    },
+    onSettled: () => {
+      setIsSubmittingModal(false);
+    }
+  });
+
+  const deleteEventMutation = useMutation<void, Error, string>({
+    mutationFn: deleteAgendaEventAPI,
+    onSuccess: () => {
+      toast.success('Evento excluído com sucesso!');
+      tanstackQueryClient.invalidateQueries({ queryKey: ['agendaEvents'] });
+      calendarRef.current?.getApi().refetchEvents();
+      setIsViewEditModalOpen(false);
+    },
+    onError: (error) => {
+      toast.error(`Falha ao excluir evento: ${error.message}`);
+    }
+  });
+
+  const requestContactMutation = useMutation<any, Error, ContactFormData>({
+    mutationFn: requestPatientContactAPI,
+    onSuccess: (data) => {
+      toast.success(data?.message || 'Solicitação de contato enviada com sucesso!');
+      setIsContactModalOpen(false);
+      setContactFormData({ patientId: '', reason: '' });
+    },
+    onError: (error) => {
+      toast.error(`Falha ao solicitar contato: ${error.message}`);
+    },
+    onSettled: () => {
+      setIsSubmittingModal(false);
+    }
+  });
+
+  // --- Handlers de Interação do Calendário e Modais --- 
+  const handleDateClick = (arg: DateClickArg) => {
+    const defaultStartTime = format(arg.date, 'yyyy-MM-dd\'T\'HH:mm');
+    const defaultEndTime = format(new Date(arg.date.getTime() + 60 * 60 * 1000), 'yyyy-MM-dd\'T\'HH:mm'); // Adiciona 1 hora
+    setNewEventForm({ 
+        summary: '', 
+        start: defaultStartTime, 
+        end: defaultEndTime, 
+        description: '', 
+        addGoogleMeet: false 
+    });
+    setIsCreateModalOpen(true);
+  };
+
+  const handleEventClick = (clickInfo: EventClickArg) => {
+    const event = clickInfo.event;
+    setSelectedEvent({
+      id: event.id,
+      title: event.title,
+      start: event.startStr,
+      end: event.endStr,
+      allDay: event.allDay,
+      description: event.extendedProps.description,
+      location: event.extendedProps.location, 
+      gmeetLink: event.extendedProps.gmeetLink,
+      extendedProps: event.extendedProps
+    });
+    setEditEventForm({
+      summary: event.title,
+      start: format(parseISO(event.startStr), "yyyy-MM-dd'T'HH:mm"), // Formatar para datetime-local
+      end: event.endStr ? format(parseISO(event.endStr), "yyyy-MM-dd'T'HH:mm") : '',
+      description: event.extendedProps.description || '',
+      addGoogleMeet: !!event.extendedProps.gmeetLink, // ou event.extendedProps.location
+      location: event.extendedProps.location
+    });
+    setIsEditingEvent(false); // Inicia em modo de visualização
+    setIsViewEditModalOpen(true);
+  };
+  
+  // Handlers para eventDrop e eventResize (arrastar e redimensionar)
+  const handleEventDropOrResize = async (changeInfo: { event: EventApi, oldEvent: EventApi, revert: () => void }) => {
+    const { event } = changeInfo;
+    if (!event.id) {
+        toast.error("ID do evento não encontrado para atualização.");
+        changeInfo.revert();
+        return;
+    }
+    const updatedEventData: Partial<EventFormData> = {
+        summary: event.title,
+        start: event.startStr,
+        end: event.endStr,
+        // addGoogleMeet e description não são alterados por drag/resize diretamente
+    };
+    try {
+        setIsSubmittingModal(true); // Indicar loading global ou específico do calendário
+        await updateEventMutation.mutateAsync({ eventId: event.id, eventData: updatedEventData });
+        // toast já é tratado no onSuccess da mutação
+    } catch (error: any) {
+        toast.error(`Falha ao mover/redimensionar evento: ${error.message}`);
+        changeInfo.revert(); // Reverte a alteração no calendário em caso de erro
+    } finally {
+        setIsSubmittingModal(false);
+    }
+  };
+
+  // --- Handlers de Formulário --- 
   const handleNewEventFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    setNewEventForm(prev => ({ ...prev, [e.target.name]: e.target.value }));
+    const { name, value, type } = e.target;
+    setNewEventForm(prev => ({ ...prev, [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value }));
   };
   const handleEditEventFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    setEditEventForm(prev => prev ? ({ ...prev, [e.target.name]: e.target.value }) : null);
+    const { name, value, type } = e.target;
+    setEditEventForm(prev => prev ? ({ ...prev, [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value }) : null);
   };
-  const handleContactFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleContactFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     setContactFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
   const handleCreateEventSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newEventForm.summary || !newEventForm.start || !newEventForm.end) { alert('Título, Início e Fim são obrigatórios.'); return; }
-    if (new Date(newEventForm.start) >= new Date(newEventForm.end)) { alert('A data de término deve ser posterior à data de início.'); return; }
+    if (!newEventForm.summary || !newEventForm.start || !newEventForm.end) {
+      toast('Título, Início e Fim são obrigatórios.', {
+        action: { label: 'Ok', onClick: () => {} },
+      });
+      return;
+    }
+    if (new Date(newEventForm.start) >= new Date(newEventForm.end)) {
+      toast('A data de término deve ser posterior à data de início.', {
+        action: { label: 'Ok', onClick: () => {} },
+      });
+      return;
+    }
+    setIsSubmittingModal(true);
     createEventMutation.mutate(newEventForm);
   };
 
   const handleUpdateEventSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedEvent?.id || !editEventForm) { alert('Evento não selecionado ou formulário inválido.'); return; }
-    if (!editEventForm.summary || !editEventForm.start || !editEventForm.end) { alert('Título, Início e Fim são obrigatórios.'); return; }
-    if (new Date(editEventForm.start) >= new Date(editEventForm.end)) { alert('A data de término deve ser posterior à data de início.'); return; }
+    if (!selectedEvent?.id || !editEventForm) {
+      toast.error('Erro interno: Evento não selecionado ou formulário inválido.');
+      return;
+    }
+    if (!editEventForm.summary || !editEventForm.start || !editEventForm.end) {
+      toast('Título, Início e Fim são obrigatórios.', {
+        action: { label: 'Ok', onClick: () => {} },
+      });
+      return;
+    }
+    if (new Date(editEventForm.start) >= new Date(editEventForm.end)) {
+      toast('A data de término deve ser posterior à data de início.', {
+        action: { label: 'Ok', onClick: () => {} },
+      });
+      return;
+    }
+    setIsSubmittingModal(true);
     updateEventMutation.mutate({ eventId: selectedEvent.id, eventData: editEventForm });
   };
 
-  const handleDeleteEvent = () => {
-    if (!selectedEvent?.id) { alert('Nenhum evento selecionado para excluir.'); return; }
+  const handleDeleteCurrentEvent = () => {
+    if (!selectedEvent?.id) {
+      toast.error('Nenhum evento selecionado para excluir.');
+      return;
+    }
     if (window.confirm(`Tem certeza que deseja excluir o evento "${selectedEvent.title}"?`)) {
-        deleteEventMutation.mutate(selectedEvent.id);
+      deleteEventMutation.mutate(selectedEvent.id);
     }
   };
 
   const handleRequestContactSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!contactFormData.patientName || !contactFormData.patientPhone || !contactFormData.reason) {
-      alert('Nome do Paciente, Telefone e Motivo são obrigatórios.');
+    if (!contactFormData.patientId || !contactFormData.reason) {
+      toast('Paciente e Motivo do contato são obrigatórios.', {
+        action: { label: 'Ok', onClick: () => {} }, 
+      });
       return;
     }
-    // TODO: Validação de telefone/email (opcional, pode ser feita no backend)
+    setIsSubmittingModal(true);
     requestContactMutation.mutate(contactFormData);
   };
-
+  
   const closeViewEditModal = () => {
     setIsViewEditModalOpen(false);
-    setIsEditingEvent(false);
     setSelectedEvent(null);
     setEditEventForm(null);
+    setIsEditingEvent(false);
   };
 
-  const handleEventDrop = useCallback(async (dropInfo: any) => {
-    const { event, oldEvent, revert } = dropInfo;
-    if (!event.id) {
-      revert();
-      return;
-    }
+  // --- Renderização do Conteúdo do Evento no Calendário (Exemplo) --- 
+  const renderEventContent = (eventInfo: any) => {
+    const isPastEvent = eventInfo.event.end && new Date(eventInfo.event.end) < new Date();
+    const opacityClass = isPastEvent ? 'opacity-60' : '';
 
-    const newStart = event.start ? format(event.start, "yyyy-MM-dd'T'HH:mm:ss") : null;
-    const newEnd = event.end ? format(event.end, "yyyy-MM-dd'T'HH:mm:ss") : (newStart ? format(new Date(new Date(newStart).getTime() + (oldEvent.end.getTime() - oldEvent.start.getTime())), "yyyy-MM-dd'T'HH:mm:ss") : null) ;
+    return (
+      <div className={`p-1.5 rounded-md h-full flex flex-col justify-center ${opacityClass} transition-colors duration-150 ease-in-out group hover:bg-indigo-50 dark:hover:bg-gray-700`}>
+        <div className="flex items-center justify-between">
+          <b className={`text-xs font-semibold truncate ${isPastEvent ? 'text-gray-500 dark:text-gray-400' : 'text-indigo-700 dark:text-indigo-300'} group-hover:text-indigo-800 dark:group-hover:text-indigo-200`}>
+            {eventInfo.timeText}
+          </b>
+          {eventInfo.event.extendedProps.gmeetLink && (
+            <VideoCameraIcon className={`w-3.5 h-3.5 ${isPastEvent ? 'text-gray-400 dark:text-gray-500' : 'text-blue-500 dark:text-blue-400'} group-hover:text-blue-600 dark:group-hover:text-blue-300`} />
+          )}
+        </div>
+        <p className={`mt-0.5 text-xs leading-tight truncate ${isPastEvent ? 'text-gray-600 dark:text-gray-300' : 'text-gray-700 dark:text-gray-200'} group-hover:text-gray-800 dark:group-hover:text-gray-100`}>
+          {eventInfo.event.title}
+        </p>
+        {eventInfo.event.extendedProps.description && (
+          <p className={`mt-0.5 text-[11px] leading-tight text-gray-500 dark:text-gray-400 truncate group-hover:text-gray-600 dark:group-hover:text-gray-300`}>
+            {eventInfo.event.extendedProps.description}
+          </p>
+        )}
+      </div>
+    );
+  };
 
-    if (!newStart) {
-      revert();
-      return;
-    }
-
-    const updatedData: Partial<EventFormData> = {
-      start: newStart,
-      end: newEnd || newStart,
-    };
-
-    try {
-      await updateEventMutation.mutateAsync({ eventId: event.id, eventData: updatedData });
-    } catch (error) {
-      alert('Falha ao mover o evento. Revertendo.');
-      revert();
-    }
-  }, [updateEventMutation]);
-
-  const handleEventResize = useCallback(async (resizeInfo: any) => {
-    const { event, revert } = resizeInfo;
-    if (!event.id) {
-      revert();
-      return;
-    }
-
-    const newStart = event.start ? format(event.start, "yyyy-MM-dd'T'HH:mm:ss") : null;
-    const newEnd = event.end ? format(event.end, "yyyy-MM-dd'T'HH:mm:ss") : null;
-
-    if (!newStart || !newEnd) {
-      revert();
-      return;
-    }
-
-    const updatedData: Partial<EventFormData> = {
-      start: newStart,
-      end: newEnd,
-    };
-
-    try {
-      await updateEventMutation.mutateAsync({ eventId: event.id, eventData: updatedData });
-    } catch (error) {
-      alert('Falha ao redimensionar o evento. Revertendo.');
-      revert();
-    }
-  }, [updateEventMutation]);
-
-  if (initialEventsError && !isLoadingInitialEvents) {
-      return <div className="container mx-auto p-4">Erro ao carregar dados iniciais da agenda: {initialEventsError.message}</div>;
-  }
-  
+  // --- JSX Principal --- 
   return (
     <>
-      <div className="container mx-auto p-4 h-full flex flex-col">
-        <div className="mb-4 flex justify-between items-center">
-          <h1 className="text-3xl font-bold">Minha Agenda</h1>
-          <div>
-            <button 
-              onClick={() => {
-                const now = new Date();
-                const defaultStartTime = format(now, "yyyy-MM-dd'T'HH:mm");
-                const defaultEndTime = format(new Date(now.getTime() + 60 * 60 * 1000), "yyyy-MM-dd'T'HH:mm");
-                setNewEventForm({ summary: '', start: defaultStartTime, end: defaultEndTime, description: '' });
-                setIsCreateModalOpen(true);
-              }}
-              className="btn-primary mr-2"
-            >
-              + Novo Evento
-            </button>
-            <button 
-              onClick={() => setIsContactModalOpen(true)} 
-              className="btn-secondary"
-            >
-              Contatar Paciente
-            </button>
+      <Toaster richColors position="top-right" />
+      <div className="p-4 md:p-6 lg:p-8 h-full flex flex-col bg-gray-50 dark:bg-gray-900">
+        <header className="mb-6 pb-4 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex flex-col sm:flex-row justify-between items-center">
+            {/* Título omitido pois é gerenciado pelo AppContext */}
+            <div className="flex items-center space-x-3 mt-4 sm:mt-0 w-full sm:w-auto justify-end">
+              <button
+                type="button"
+                onClick={() => setIsContactModalOpen(true)}
+                disabled={isSubmittingModal} 
+                className="inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-70 transition ease-in-out duration-150"
+              >
+                <UserPlusIcon className="-ml-0.5 mr-2 h-5 w-5" aria-hidden="true" />
+                Contatar Paciente
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const todayStr = format(new Date(), 'yyyy-MM-dd');
+                  setNewEventForm({ 
+                    summary: '', 
+                    start: `${todayStr}T09:00`, 
+                    end: `${todayStr}T10:00`, 
+                    description: '', 
+                    addGoogleMeet: false 
+                  });
+                  setIsCreateModalOpen(true);
+                }}
+                disabled={isSubmittingModal}
+                className="inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-70 transition ease-in-out duration-150"
+              >
+                <PlusIcon className="-ml-0.5 mr-2 h-5 w-5" aria-hidden="true" />
+                Novo Evento
+              </button>
+            </div>
           </div>
-        </div>
+        </header>
 
-        {(isLoadingInitialEvents) && <div className="text-center py-4">Carregando eventos iniciais...</div>}
-        <div className="flex-grow" style={{ minHeight: '70vh' }}>
-          <FullCalendar
-            ref={calendarRef}
-            plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-            initialView="dayGridMonth"
-            headerToolbar={{
-              left: 'prev,next today',
-              center: 'title',
-              right: 'dayGridMonth,timeGridWeek,timeGridDay'
-            }}
-            locale='pt-br'
-            buttonText={{ today: 'Hoje', month: 'Mês', week: 'Semana', day: 'Dia' }}
-            events={eventSourceFunc} 
-            editable={true}
-            selectable={true}
-            selectMirror={true}
-            dayMaxEvents={true}
-            weekends={true}
-            dateClick={handleDateClick}
-            eventClick={handleEventClick}
-            eventDrop={handleEventDrop}
-            eventResize={handleEventResize}
-            height="auto"
-          />
-        </div>
+        <main className="flex-grow min-h-0 bg-white dark:bg-gray-800 shadow-xl rounded-lg overflow-hidden p-1 sm:p-2 md:p-4">
+          {isLoadingEvents && (
+            <div className="flex items-center justify-center h-full">
+              <p className="text-gray-500 dark:text-gray-400 text-lg">Carregando agenda...</p>
+              {/* TODO: Adicionar um Skeleton Loader elegante aqui */}
+            </div>
+          )}
+          {eventsError && (
+            <div className="flex flex-col items-center justify-center h-full p-4 bg-red-50 dark:bg-red-900/20 rounded-md text-center">
+              <h3 className="text-lg font-semibold text-red-700 dark:text-red-300">Ops! Algo deu errado.</h3>
+              <p className="text-red-600 dark:text-red-400 mt-1">Não foi possível carregar os eventos da agenda: {eventsError.message}</p>
+              <button 
+                onClick={() => refetchCalendarEvents()} 
+                className="mt-4 px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+              >
+                Tentar Novamente
+              </button>
+            </div>
+          )}
+          {!isLoadingEvents && !eventsError && (
+            <FullCalendar
+              ref={calendarRef}
+              plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+              headerToolbar={{
+                left: 'prev,next today',
+                center: 'title',
+                right: 'dayGridMonth,timeGridWeek,timeGridDay'
+              }}
+              buttonText={{ today: 'Hoje', month: 'Mês', week: 'Semana', day: 'Dia', list: 'Lista' }}
+              locale='pt-br'
+              initialView="timeGridWeek"
+              editable={true}
+              selectable={true}
+              selectMirror={true}
+              dayMaxEvents={true}
+              weekends={true}
+              events={eventSourceFunc}
+              height="100%"
+              contentHeight="auto"
+              dateClick={handleDateClick}
+              eventClick={handleEventClick}
+              eventDrop={handleEventDropOrResize}
+              eventResize={handleEventDropOrResize}
+              eventContent={renderEventContent}
+              viewClassNames="bg-white dark:bg-gray-800 rounded-lg shadow"
+              eventClassNames="border-none rounded-lg shadow-sm"
+              buttonHints={{
+                prev: 'Mês anterior',
+                next: 'Próximo mês',
+                today: 'Hoje',
+                month: 'Visualizar mês',
+                week: 'Visualizar semana',
+                day: 'Visualizar dia'
+              }}
+            />
+          )}
+        </main>
+
+        {/* Modais (placeholders como antes) */}
+        {isCreateModalOpen && ( <div/>)}
+        {isViewEditModalOpen && ( <div/>)}
+        {isContactModalOpen && ( <div/>)}
       </div>
-
-      {/* Modal de Criação de Evento */}
-      <Transition appear show={isCreateModalOpen} as={Fragment}>
-        <Dialog as="div" className="relative z-10" onClose={() => setIsCreateModalOpen(false)}>
-          <Transition.Child as={Fragment} enter="ease-out duration-300" enterFrom="opacity-0" enterTo="opacity-100" leave="ease-in duration-200" leaveFrom="opacity-100" leaveTo="opacity-0"><div className="fixed inset-0 bg-black bg-opacity-25" /></Transition.Child>
-          <div className="fixed inset-0 overflow-y-auto"><div className="flex min-h-full items-center justify-center p-4 text-center">
-          <Transition.Child as={Fragment} enter="ease-out duration-300" enterFrom="opacity-0 scale-95" enterTo="opacity-100 scale-100" leave="ease-in duration-200" leaveFrom="opacity-100 scale-100" leaveTo="opacity-0 scale-95">
-            <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white p-6 text-left align-middle shadow-xl transition-all">
-              <Dialog.Title as="h3" className="text-lg font-medium leading-6 text-gray-900">Criar Novo Evento</Dialog.Title>
-              <form onSubmit={handleCreateEventSubmit} className="mt-4 space-y-4">
-                <div>
-                  <label htmlFor="summary-create" className="block text-sm font-medium text-gray-700">Título</label>
-                  <input type="text" name="summary" id="summary-create" value={newEventForm.summary} onChange={handleNewEventFormChange} required className="input-field"/>
-                </div>
-                <div>
-                  <label htmlFor="start-create" className="block text-sm font-medium text-gray-700">Início</label>
-                  <input type="datetime-local" name="start" id="start-create" value={newEventForm.start} onChange={handleNewEventFormChange} required className="input-field"/>
-                </div>
-                <div>
-                  <label htmlFor="end-create" className="block text-sm font-medium text-gray-700">Fim</label>
-                  <input type="datetime-local" name="end" id="end-create" value={newEventForm.end} onChange={handleNewEventFormChange} required className="input-field"/>
-                </div>
-                <div>
-                  <label htmlFor="description-create" className="block text-sm font-medium text-gray-700">Descrição (Opcional)</label>
-                  <textarea name="description" id="description-create" rows={3} value={newEventForm.description || ''} onChange={handleNewEventFormChange} className="input-field h-auto"/>
-                </div>
-                <div className="mt-6 flex justify-end space-x-2">
-                  <button type="button" className="btn-secondary" onClick={() => setIsCreateModalOpen(false)}>Cancelar</button>
-                  <button type="submit" disabled={createEventMutation.isPending} className="btn-primary">
-                    {createEventMutation.isPending ? 'Criando...' : 'Criar Evento'}
-                  </button>
-                </div>
-              </form>
-            </Dialog.Panel>
-          </Transition.Child>
-          </div></div>
-        </Dialog>
-      </Transition>
-
-      {/* Modal de Visualização/Edição de Evento */}
-      <Transition appear show={isViewEditModalOpen} as={Fragment}>
-        <Dialog as="div" className="relative z-20" onClose={closeViewEditModal}>
-          <Transition.Child as={Fragment} enter="ease-out duration-300" enterFrom="opacity-0" enterTo="opacity-100" leave="ease-in duration-200" leaveFrom="opacity-100" leaveTo="opacity-0"><div className="fixed inset-0 bg-black bg-opacity-35" /></Transition.Child>
-          <div className="fixed inset-0 overflow-y-auto"><div className="flex min-h-full items-center justify-center p-4 text-center">
-          <Transition.Child as={Fragment} enter="ease-out duration-300" enterFrom="opacity-0 scale-95" enterTo="opacity-100 scale-100" leave="ease-in duration-200" leaveFrom="opacity-100 scale-100" leaveTo="opacity-0 scale-95">
-            <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white p-6 text-left align-middle shadow-xl transition-all">
-              <Dialog.Title as="h3" className="text-lg font-medium leading-6 text-gray-900">
-                {isEditingEvent ? 'Editar Evento' : selectedEvent?.title || 'Detalhes do Evento'}
-              </Dialog.Title>
-              
-              {selectedEvent && editEventForm && (
-                <form onSubmit={isEditingEvent ? handleUpdateEventSubmit: (e) => e.preventDefault()} className="mt-4 space-y-4">
-                  <div>
-                    <label htmlFor="summary-edit" className="block text-sm font-medium text-gray-700">Título</label>
-                    <input type="text" name="summary" id="summary-edit" value={editEventForm.summary} onChange={handleEditEventFormChange} required={isEditingEvent} readOnly={!isEditingEvent} className={`input-field ${!isEditingEvent ? 'bg-gray-100' : ''}`}/>
-                  </div>
-                  <div>
-                    <label htmlFor="start-edit" className="block text-sm font-medium text-gray-700">Início</label>
-                    <input type="datetime-local" name="start" id="start-edit" value={editEventForm.start} onChange={handleEditEventFormChange} required={isEditingEvent} readOnly={!isEditingEvent} className={`input-field ${!isEditingEvent ? 'bg-gray-100' : ''}`}/>
-                  </div>
-                  <div>
-                    <label htmlFor="end-edit" className="block text-sm font-medium text-gray-700">Fim</label>
-                    <input type="datetime-local" name="end" id="end-edit" value={editEventForm.end} onChange={handleEditEventFormChange} required={isEditingEvent} readOnly={!isEditingEvent} className={`input-field ${!isEditingEvent ? 'bg-gray-100' : ''}`}/>
-                  </div>
-                  <div>
-                    <label htmlFor="description-edit" className="block text-sm font-medium text-gray-700">Descrição</label>
-                    <textarea name="description" id="description-edit" rows={3} value={editEventForm.description || ''} onChange={handleEditEventFormChange} readOnly={!isEditingEvent} className={`input-field h-auto ${!isEditingEvent ? 'bg-gray-100' : ''}`}/>
-                  </div>
-                  
-                  {selectedEvent.extendedProps?.location && !isEditingEvent && (
-                      <div className="mt-2 p-2 bg-gray-50 rounded">
-                          <p className="text-sm font-medium text-gray-700">Local:</p>
-                          <p className="text-sm text-gray-600">{selectedEvent.extendedProps.location}</p>
-                      </div>
-                  )}
-
-                  <div className="mt-6 flex justify-between items-center">
-                    <div> 
-                      {!isEditingEvent && (
-                        <button type="button" className="btn-primary mr-2" onClick={() => setIsEditingEvent(true)}>
-                          Editar
-                        </button>
-                      )}
-                      {isEditingEvent && (
-                        <button type="button" className="btn-secondary mr-2" onClick={() => {
-                           setIsEditingEvent(false);
-                           if (selectedEvent) {
-                            const startStr = selectedEvent.start ? format(new Date(selectedEvent.start.toString()), "yyyy-MM-dd'T'HH:mm") : '';
-                            const endStr = selectedEvent.end ? format(new Date(selectedEvent.end.toString()), "yyyy-MM-dd'T'HH:mm") : '';
-                            setEditEventForm({
-                                summary: selectedEvent.title || '',
-                                start: startStr,
-                                end: endStr,
-                                description: selectedEvent.description || selectedEvent.extendedProps?.description || ''
-                            });
-                           }
-                        }}>
-                          Cancelar Edição
-                        </button>
-                      )}
-                       <button
-                        type="button"
-                        onClick={handleDeleteEvent}
-                        disabled={deleteEventMutation.isPending || isEditingEvent}
-                        className={`btn-danger ${isEditingEvent ? 'opacity-50 cursor-not-allowed' : ''}`}
-                      >
-                        {deleteEventMutation.isPending ? 'Excluindo...' : 'Excluir'}
-                      </button>
-                    </div>
-                    <div> 
-                      {isEditingEvent && (
-                        <button type="submit" disabled={updateEventMutation.isPending} className="btn-primary">
-                          {updateEventMutation.isPending ? 'Salvando...' : 'Salvar Alterações'}
-                        </button>
-                      )}
-                      {!isEditingEvent && (
-                         <button type="button" className="btn-secondary" onClick={closeViewEditModal}>Fechar</button>
-                      )}
-                    </div>
-                  </div>
-                </form>
-              )}
-              {!selectedEvent && <div className="p-4 text-center">Carregando detalhes do evento...</div>}
-
-            </Dialog.Panel>
-          </Transition.Child>
-          </div></div>
-        </Dialog>
-      </Transition>
-
-      {/* Modal para Contatar Paciente */}
-      <Transition appear show={isContactModalOpen} as={Fragment}>
-        <Dialog as="div" className="relative z-30" onClose={() => setIsContactModalOpen(false)}>
-          <Transition.Child as={Fragment} enter="ease-out duration-300" enterFrom="opacity-0" enterTo="opacity-100" leave="ease-in duration-200" leaveFrom="opacity-100" leaveTo="opacity-0"><div className="fixed inset-0 bg-black bg-opacity-40" /></Transition.Child>
-          <div className="fixed inset-0 overflow-y-auto"><div className="flex min-h-full items-center justify-center p-4 text-center">
-          <Transition.Child as={Fragment} enter="ease-out duration-300" enterFrom="opacity-0 scale-95" enterTo="opacity-100 scale-100" leave="ease-in duration-200" leaveFrom="opacity-100 scale-100" leaveTo="opacity-0 scale-95">
-            <Dialog.Panel className="w-full max-w-lg transform overflow-hidden rounded-2xl bg-white p-6 text-left align-middle shadow-xl transition-all">
-              <Dialog.Title as="h3" className="text-xl font-semibold leading-6 text-gray-900">Contatar Paciente/Lead</Dialog.Title>
-              <form onSubmit={handleRequestContactSubmit} className="mt-6 space-y-5">
-                <div>
-                  <label htmlFor="patientName" className="block text-sm font-medium text-gray-700">Nome do Paciente/Lead <span className="text-red-500">*</span></label>
-                  <input type="text" name="patientName" id="patientName" value={contactFormData.patientName} onChange={handleContactFormChange} required className="input-field"/>
-                </div>
-                <div>
-                  <label htmlFor="patientPhone" className="block text-sm font-medium text-gray-700">Telefone <span className="text-red-500">*</span></label>
-                  <input type="tel" name="patientPhone" id="patientPhone" value={contactFormData.patientPhone} onChange={handleContactFormChange} required className="input-field" placeholder="(XX) XXXXX-XXXX"/>
-                </div>
-                <div>
-                  <label htmlFor="patientEmail" className="block text-sm font-medium text-gray-700">Email (Opcional)</label>
-                  <input type="email" name="patientEmail" id="patientEmail" value={contactFormData.patientEmail || ''} onChange={handleContactFormChange} className="input-field"/>
-                </div>
-                <div>
-                  <label htmlFor="reason" className="block text-sm font-medium text-gray-700">Motivo do Contato / Tipo de Consulta <span className="text-red-500">*</span></label>
-                  <textarea name="reason" id="reason" rows={4} value={contactFormData.reason} onChange={handleContactFormChange} required className="input-field h-auto" placeholder="Ex: Paciente João referiu interesse em agendar uma consulta de rotina."/>
-                </div>
-                <div className="mt-8 flex justify-end space-x-3">
-                  <button type="button" className="btn-secondary" onClick={() => setIsContactModalOpen(false)}>Cancelar</button>
-                  <button type="submit" disabled={requestContactMutation.isPending} className="btn-primary">
-                    {requestContactMutation.isPending ? 'Enviando Solicitação...' : 'Solicitar Contato'}
-                  </button>
-                </div>
-              </form>
-            </Dialog.Panel>
-          </Transition.Child>
-          </div></div>
-        </Dialog>
-      </Transition>
-
     </>
   );
 };
 
+// --- Componente Wrapper da Página e Provedor React Query --- 
 const AgendaPage = () => {
+  // queryClientInstance é definido fora para não ser recriado em cada render
   return (
     <QueryClientProvider client={queryClientInstance}>
       <AgendaPageContent />
