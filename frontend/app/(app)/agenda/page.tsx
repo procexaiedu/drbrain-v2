@@ -53,16 +53,32 @@ interface PatientForSelect {
 const queryClientInstance = new QueryClient();
 
 // --- Funções de API (sem alterações de lógica, apenas ajustes menores se necessário) --- 
-const fetchAgendaEvents = async (fetchInfo?: { startStr: string, endStr: string }): Promise<CalendarEvent[]> => {
+const fetchAgendaEvents = async (fetchInfoInput?: { startStr: string, endStr: string }): Promise<CalendarEvent[]> => {
   const { data: { session }, error: sessionError } = await supabase.auth.getSession();
   if (sessionError || !session) {
     toast.error('Sessão inválida. Por favor, faça login novamente.');
     throw new Error('Usuário não autenticado.');
   }
-  let url = '/edge/v1/agenda-crud-events';
-  if (fetchInfo) {
-    url += `?start_date=${encodeURIComponent(fetchInfo.startStr)}&end_date=${encodeURIComponent(fetchInfo.endStr)}`;
+
+  let effectiveFetchInfo: { startStr: string, endStr: string };
+
+  if (fetchInfoInput) {
+    effectiveFetchInfo = fetchInfoInput;
+  } else {
+    // Se fetchInfoInput não for fornecido, define um intervalo padrão (mês atual)
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59); // Último dia do mês às 23:59:59
+    effectiveFetchInfo = {
+      startStr: startOfMonth.toISOString(),
+      endStr: endOfMonth.toISOString()
+    };
+    console.log('fetchAgendaEvents: Usando intervalo padrão (mês atual):', effectiveFetchInfo);
   }
+
+  let url = '/edge/v1/agenda-crud-events';
+  url += `?start_date=${encodeURIComponent(effectiveFetchInfo.startStr)}&end_date=${encodeURIComponent(effectiveFetchInfo.endStr)}`;
+  
   const response = await fetch(url, {
     headers: { 'Authorization': `Bearer ${session.access_token}` }
   });
