@@ -24,12 +24,40 @@ async function getValidGoogleToken(medico_id: string): Promise<string | null> {
     return null;
   }
 
-  const currentTime = Math.floor(Date.now() / 1000);
-  if (tokenData.expires_at && tokenData.expires_at > currentTime + 300) {
-    console.log(`getValidGoogleToken: Token válido para ${medico_id}`);
+  const currentTimeInSeconds = Math.floor(Date.now() / 1000);
+  let isTokenCurrentlyValid = false;
+
+  if (tokenData.expires_at) {
+    try {
+      // Assumindo que tokenData.expires_at é uma string ISO 8601 válida do banco.
+      // Se for um formato inesperado, o new Date() pode resultar em 'Invalid Date'.
+      const tokenExpiresAtDate = new Date(tokenData.expires_at);
+      if (!isNaN(tokenExpiresAtDate.getTime())) {
+        const tokenExpiresAtInSeconds = Math.floor(tokenExpiresAtDate.getTime() / 1000);
+        if (tokenExpiresAtInSeconds > currentTimeInSeconds + 300) { // 300s = 5min buffer
+          console.log(`getValidGoogleToken: Token válido para ${medico_id}. Expira em: ${tokenExpiresAtDate.toISOString()}`);
+          isTokenCurrentlyValid = true;
+        } else {
+          console.log(`getValidGoogleToken: Token para ${medico_id} expirado ou prestes a expirar. Expira em: ${tokenExpiresAtDate.toISOString()}, Agora: ${new Date(currentTimeInSeconds * 1000).toISOString()}`);
+        }
+      } else {
+        console.warn(`getValidGoogleToken: Formato de expires_at inválido do DB para ${medico_id}: ${tokenData.expires_at}. Forçando refresh.`);
+        // isTokenCurrentlyValid permanece false, forçando o refresh
+      }
+    } catch (e) {
+      console.error(`getValidGoogleToken: Erro ao parsear expires_at ('${tokenData.expires_at}') para ${medico_id}:`, e);
+      // isTokenCurrentlyValid permanece false, forçando o refresh
+    }
+  } else {
+    console.log(`getValidGoogleToken: expires_at não definido para ${medico_id}. Forçando refresh.`);
+    // isTokenCurrentlyValid permanece false
+  }
+
+  if (isTokenCurrentlyValid && tokenData.access_token) {
     return tokenData.access_token;
   }
 
+  // Se chegou aqui, o token não é válido ou não existe, prosseguir para refresh ou erro
   if (!tokenData.refresh_token) {
     console.error(`getValidGoogleToken: Token expirado, sem refresh_token para ${medico_id}`);
     return null;
@@ -65,12 +93,13 @@ async function getValidGoogleToken(medico_id: string): Promise<string | null> {
     const newTokens = await refreshResponse.json() as GoogleTokenRefreshResponse;
     console.log(`getValidGoogleToken: Token refrescado para ${medico_id}`);
 
-    const new_expires_at = Math.floor(Date.now() / 1000) + newTokens.expires_in;
+    const new_expires_at_unix = Math.floor(Date.now() / 1000) + newTokens.expires_in;
+    const new_expires_at_iso = new Date(new_expires_at_unix * 1000).toISOString();
     const { error: updateError } = await supabaseAdmin
       .from('medico_oauth_tokens')
       .update({
         access_token: newTokens.access_token,
-        expires_at: new_expires_at,
+        expires_at: new_expires_at_iso,
         updated_at: new Date().toISOString(),
       })
       .eq('medico_id', medico_id)
