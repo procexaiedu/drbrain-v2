@@ -19,6 +19,9 @@ interface ChatInterfaceProps {
   chatSubtitle?: string;
   onClearChat?: () => void;
   inputPlaceholder?: string;
+  variant?: 'default' | 'playground';
+  chatContext?: 'secretaria' | 'bob';
+  onSendToBob?: (text: string) => void;
 }
 
 export default function ChatInterface({
@@ -34,7 +37,10 @@ export default function ChatInterface({
   chatTitle,
   chatSubtitle,
   onClearChat,
-  inputPlaceholder
+  inputPlaceholder,
+  variant = 'default',
+  chatContext,
+  onSendToBob
 }: ChatInterfaceProps) {
   const [messages, setMessages] = useState<Message[]>(initialMessages || []);
   const [inputText, setInputText] = useState('');
@@ -50,6 +56,7 @@ export default function ChatInterface({
   const resolvedAgentName = agentName || 'Agente IA';
   const DEFAULT_USER_AVATAR_PLACEHOLDER = 'https://placehold.co/40/8b5cf6/ffffff?text=Dr';
   const DEFAULT_AGENT_AVATAR_PLACEHOLDER = 'https://placehold.co/40/7c3aed/ffffff?text=IA';
+  const isPlayground = variant === 'playground';
 
   const currentAgentAvatar = agentAvatar || DEFAULT_AGENT_AVATAR_PLACEHOLDER;
   const currentUserAvatar = userAvatar || DEFAULT_USER_AVATAR_PLACEHOLDER;
@@ -197,9 +204,62 @@ export default function ChatInterface({
     setAudioPlaybackUrl(null);
     if (setAudioPlaybackUrlForParent) setAudioPlaybackUrlForParent(null);
   }
-  
+
+  // Funcionalidades novas do playground
+  const handleCopyMessage = (text: string) => {
+    // Feedback visual de cópia (poderia adicionar toast)
+    console.log('Mensagem copiada:', text);
+  };
+
+  const handleSendToBobFromMessage = (text: string) => {
+    if (onSendToBob) {
+      onSendToBob(text);
+    }
+  };
+
+  const handleRegenerateResponse = (messageId: string) => {
+    // Implementar regeneração da última resposta
+    const messageIndex = messages.findIndex(msg => msg.id === messageId);
+    if (messageIndex > 0) {
+      const previousUserMessage = messages[messageIndex - 1];
+      if (previousUserMessage.sender === 'user') {
+        // Regenerar usando a mensagem anterior do usuário
+        const regenerateContent = previousUserMessage.audioSrc ? 
+          'Regenerar resposta anterior' : previousUserMessage.text;
+        onSendMessage('text', regenerateContent);
+      }
+    }
+  };
+
+  const handleRateMessage = (messageId: string, rating: 'good' | 'bad') => {
+    // Implementar rating - poderia salvar no localStorage ou enviar para API
+    console.log(`Mensagem ${messageId} avaliada como: ${rating}`);
+    // Aqui poderia adicionar visual feedback ou salvar a avaliação
+  };
+
+  // Estilos condicionais
+  const containerClasses = isPlayground 
+    ? "flex flex-col h-full bg-transparent overflow-hidden"
+    : "flex flex-col h-full bg-gray-50 shadow-xl rounded-lg overflow-hidden border border-gray-200";
+
+  const formClasses = isPlayground 
+    ? "p-6"
+    : "border-t border-gray-200 bg-white p-3 sm:p-4 flex items-end space-x-2";
+
+  const inputContainerClasses = isPlayground 
+    ? "bg-white/80 backdrop-blur-md border border-white/50 rounded-3xl p-4 focus-within:ring-2 focus-within:ring-blue-400/50 focus-within:border-blue-400/50 transition-all duration-300 shadow-xl shadow-slate-500/10 relative"
+    : "";
+
+  const textareaClasses = isPlayground 
+    ? "flex-1 bg-transparent border-none resize-none focus:ring-0 focus:outline-none transition-all duration-300 min-h-[48px] max-h-32 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent text-slate-900 placeholder-slate-500 text-base"
+    : "flex-1 p-3 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-shadow duration-150 min-h-[44px] max-h-32 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 text-gray-900 placeholder-gray-500";
+
+  const buttonClasses = isPlayground 
+    ? "w-10 h-10 rounded-full transition-all duration-300 disabled:opacity-50 shadow-lg"
+    : "p-3 text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors disabled:opacity-50";
+
   return (
-    <div className="flex flex-col h-full bg-gray-50 shadow-xl rounded-lg overflow-hidden border border-gray-200">
+    <div className={containerClasses}>
       {!hideHeader && (
         <header className="bg-white text-gray-800 p-4 shadow-sm border-b border-gray-200 flex items-center justify-between sticky top-0 z-10">
           <div>
@@ -218,7 +278,7 @@ export default function ChatInterface({
         </header>
       )}
 
-      <div className="flex-1 p-4 sm:p-6 space-y-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 scrollbar-thumb-rounded-full">
+      <div className={`flex-1 p-6 space-y-2 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-300/50 scrollbar-track-transparent scrollbar-thumb-rounded-full ${isPlayground ? 'bg-gradient-to-b from-transparent to-white/20' : ''}`}>
         {messages.map((msg) => (
           <ChatMessage 
             key={msg.id} 
@@ -226,7 +286,13 @@ export default function ChatInterface({
               ...msg,
               avatar: msg.sender === 'user' ? currentUserAvatar : currentAgentAvatar,
               userName: msg.sender === 'user' ? `Dr. ${medicoNome || 'Usuário'}` : resolvedAgentName
-            }} 
+            }}
+            variant={variant}
+            chatContext={chatContext}
+            onCopyMessage={handleCopyMessage}
+            onSendToBob={handleSendToBobFromMessage}
+            onRegenerateResponse={handleRegenerateResponse}
+            onRateMessage={handleRateMessage}
           />
         ))}
         {isAgentTyping && messages.length > 0 && messages[messages.length -1].sender === 'user' && (
@@ -240,6 +306,12 @@ export default function ChatInterface({
               avatar: currentAgentAvatar,
               userName: resolvedAgentName
             }}
+            variant={variant}
+            chatContext={chatContext}
+            onCopyMessage={handleCopyMessage}
+            onSendToBob={handleSendToBobFromMessage}
+            onRegenerateResponse={handleRegenerateResponse}
+            onRateMessage={handleRateMessage}
           />
         )}
         <div ref={messagesEndRef} />
@@ -262,44 +334,96 @@ export default function ChatInterface({
         </div>
       )}
 
-      <form onSubmit={handleSend} className="border-t border-gray-200 bg-white p-3 sm:p-4 flex items-end space-x-2">
-        <textarea
-          ref={textareaRef}
-          value={inputText}
-          onChange={(e) => setInputText(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              handleSend();
-            }
-          }}
-          placeholder={inputPlaceholder || "Digite sua mensagem..."}
-          className="flex-1 p-3 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-shadow duration-150 min-h-[44px] max-h-32 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 text-gray-900 placeholder-gray-500"
-          rows={1}
-          disabled={isRecording || isAgentTyping}
-        />
-        {!isRecording && !audioBlob && (
-          <button 
-            type="button" 
-            onClick={handleStartRecording}
-            disabled={isAgentTyping}
-            className="p-3 text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors disabled:opacity-50"
-          >
-            <MicrophoneIcon className="h-5 w-5" />
-          </button>
+      <form onSubmit={handleSend} className={formClasses}>
+        {isPlayground ? (
+          <div className={inputContainerClasses}>
+            <div className="flex items-end gap-2">
+              <textarea
+                ref={textareaRef}
+                value={inputText}
+                onChange={(e) => setInputText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSend();
+                  }
+                }}
+                placeholder={inputPlaceholder || "Digite sua mensagem..."}
+                className={textareaClasses}
+                rows={1}
+                disabled={isRecording || isAgentTyping}
+              />
+              <div className="flex items-center gap-2 pb-1">
+                {!isRecording && !audioBlob && (
+                  <button 
+                    type="button" 
+                    onClick={handleStartRecording}
+                    disabled={isAgentTyping}
+                    className={`${buttonClasses} bg-slate-100 text-slate-600 hover:bg-slate-200 hover:scale-110 active:scale-95 flex items-center justify-center`}
+                  >
+                    <MicrophoneIcon className="h-5 w-5" />
+                  </button>
+                )}
+                {isRecording && (
+                  <button 
+                    type="button" 
+                    onClick={handleStopRecording} 
+                    className={`${buttonClasses} bg-gradient-to-r from-red-500 to-red-600 text-white hover:from-red-600 hover:to-red-700 hover:scale-110 active:scale-95 flex items-center justify-center animate-pulse`}
+                  >
+                    <StopCircleIcon className="h-5 w-5" />
+                  </button>
+                )}
+                <button 
+                  type="submit" 
+                  disabled={(!inputText.trim() && !audioBlob) || isAgentTyping || isRecording}
+                  className={`${buttonClasses} bg-gradient-to-r from-blue-500 to-purple-600 text-white hover:from-blue-600 hover:to-purple-700 hover:scale-110 active:scale-95 disabled:from-slate-300 disabled:to-slate-400 disabled:hover:scale-100 flex items-center justify-center`}
+                >
+                  <PaperAirplaneIcon className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <>
+            <textarea
+              ref={textareaRef}
+              value={inputText}
+              onChange={(e) => setInputText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSend();
+                }
+              }}
+              placeholder={inputPlaceholder || "Digite sua mensagem..."}
+              className={textareaClasses}
+              rows={1}
+              disabled={isRecording || isAgentTyping}
+            />
+            {!isRecording && !audioBlob && (
+              <button 
+                type="button" 
+                onClick={handleStartRecording}
+                disabled={isAgentTyping}
+                className={buttonClasses}
+              >
+                <MicrophoneIcon className="h-5 w-5" />
+              </button>
+            )}
+            {isRecording && (
+              <button type="button" onClick={handleStopRecording} className="p-3 text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors">
+                <StopCircleIcon className="h-5 w-5" />
+              </button>
+            )}
+            <button 
+              type="submit" 
+              disabled={(!inputText.trim() && !audioBlob) || isAgentTyping || isRecording}
+              className={buttonClasses}
+            >
+              <PaperAirplaneIcon className="h-5 w-5" />
+            </button>
+          </>
         )}
-        {isRecording && (
-          <button type="button" onClick={handleStopRecording} className="p-3 text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors">
-            <StopCircleIcon className="h-5 w-5" />
-          </button>
-        )}
-        <button 
-          type="submit" 
-          disabled={(!inputText.trim() && !audioBlob) || isAgentTyping || isRecording}
-          className="p-3 text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors disabled:opacity-50"
-        >
-          <PaperAirplaneIcon className="h-5 w-5" />
-        </button>
       </form>
     </div>
   );

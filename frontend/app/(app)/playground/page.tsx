@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Allotment } from 'allotment';
 import 'allotment/dist/style.css'; // Importar estilos do Allotment
 import { BookOpenIcon, CloudArrowUpIcon, ArchiveBoxXMarkIcon, ArrowPathIcon, UserCircleIcon } from '@heroicons/react/24/outline';
-import { CpuChipIcon } from '@heroicons/react/24/solid'; // Ícone para a IA
+import { CpuChipIcon, ChartBarIcon, ChatBubbleBottomCenterTextIcon } from '@heroicons/react/24/solid'; // Ícone para a IA
 import { Toaster, toast } from 'sonner'; // Para notificações
 import ConfirmationModal from '@/components/ui/ConfirmationModal'; // Importar o novo modal
 import ChatInterface from '@/components/chat/ChatInterface'; // Descomentado
@@ -348,27 +348,35 @@ export default function PlaygroundPage() {
   return (
     <>
       <Toaster richColors position="bottom-right" />
-      <div className="p-4 md:p-6 lg:p-8 h-[calc(100vh-var(--header-height,80px))] flex flex-col bg-gray-100">
-        <h1 className="text-2xl font-semibold text-gray-800 mb-6">Playground da Secretária IA</h1>
+      <div className="p-6 h-[calc(100vh-var(--header-height,80px))] flex flex-col bg-gradient-to-br from-slate-50 to-slate-100">
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent mb-2">
+            Playground da Secretária IA
+          </h1>
+          <p className="text-slate-600">Configure e teste suas inteligências artificiais</p>
+        </div>
         
-        <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-6 min-h-0">
+        <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-8 min-h-0">
           <div className="md:col-span-2 flex flex-col min-h-0 h-full">
             <Allotment defaultSizes={[50, 50]}>
               <Allotment.Pane minSize={300}>
-                <div className="h-full p-1 flex flex-col bg-white rounded-lg shadow-md">
-                  <div className="bg-purple-600 text-white p-3 shadow-md flex items-center justify-between rounded-t-lg">
-                    <div>
-                      <h2 className="text-lg font-semibold">{`Chat com ${medicoProfile?.nome_secretaria_ia || 'Secretária IA'} (Playground)`}</h2>
-                      <p className="text-sm text-purple-200">Teste sua secretária com o prompt de laboratório</p>
+                <div className="h-full flex flex-col bg-gradient-to-b from-purple-50 to-white rounded-3xl shadow-2xl border border-purple-100 overflow-hidden backdrop-blur-sm">
+                  <div className="bg-gradient-to-r from-purple-500 via-purple-600 to-pink-500 text-white p-6 relative overflow-hidden">
+                    <div className="absolute inset-0 bg-white/10 backdrop-blur-sm"></div>
+                    <div className="relative z-10 flex items-center justify-between">
+                      <div>
+                        <h2 className="text-xl font-bold">{medicoProfile?.nome_secretaria_ia || 'Secretária IA'}</h2>
+                        <p className="text-purple-100 text-sm opacity-90">Playground • Prompt de Laboratório Ativo</p>
+                      </div>
+                      <button
+                        onClick={() => handleClearChat('secretaria')}
+                        disabled={isLoading['clearSecretaria'] || isLoading['history_secretaria']}
+                        className={`p-3 transition-all rounded-full ${isLoading['clearSecretaria'] ? 'text-purple-300 cursor-not-allowed' : 'text-purple-100 hover:text-white hover:bg-white/20 hover:scale-110'}`}
+                        title="Limpar Chat da Secretária IA"
+                      >
+                        <ArrowPathIcon className={`h-5 w-5 ${isLoading['clearSecretaria'] ? 'animate-spin' : ''}`} />
+                      </button>
                     </div>
-                    <button
-                      onClick={() => handleClearChat('secretaria')}
-                      disabled={isLoading['clearSecretaria'] || isLoading['history_secretaria']}
-                      className={`p-2 transition-colors rounded ${isLoading['clearSecretaria'] ? 'text-gray-400 cursor-not-allowed' : 'text-red-300 hover:text-red-100 hover:bg-purple-700'}`}
-                      title="Limpar Chat da Secretária IA"
-                    >
-                      <ArrowPathIcon className={`h-5 w-5 ${isLoading['clearSecretaria'] ? 'animate-spin' : ''}`} />
-                    </button>
                   </div>
                   <div className="flex-1 overflow-hidden">
                     <ChatInterface 
@@ -377,29 +385,35 @@ export default function PlaygroundPage() {
                       onOnboardingComplete={() => {}} 
                       initialMessages={secretariaMessages}
                       agentName={medicoProfile?.nome_secretaria_ia || 'Secretária IA'}
-                      agentAvatar={<CpuChipIcon className="h-8 w-8 text-white" />} 
-                      userAvatar={<UserCircleIcon className="h-8 w-8 text-gray-700" />}
+                      agentAvatar={<CpuChipIcon className="h-8 w-8 text-purple-500" />} 
+                      userAvatar={<UserCircleIcon className="h-8 w-8 text-slate-600" />}
                       hideHeader={true}
-                      setAudioPlaybackUrlForParent={setAudioPlaybackUrl} // Passar a função para ChatInterface
+                      setAudioPlaybackUrlForParent={setAudioPlaybackUrl}
+                      variant="playground"
+                      chatContext="secretaria"
+                      onSendToBob={(text) => handleSendMessage('bob', 'text', text)}
                     />
                   </div>
                 </div>
               </Allotment.Pane>
               <Allotment.Pane minSize={300}>
-                <div className="h-full p-1 flex flex-col bg-white rounded-lg shadow-md">
-                  <div className="bg-blue-600 text-white p-3 shadow-md flex items-center justify-between rounded-t-lg">
-                    <div>
-                      <h2 className="text-lg font-semibold">Chat com Bob, o Engenheiro de Prompt</h2>
-                      <p className="text-sm text-blue-200">Converse com Bob para refinar seu prompt</p>
+                <div className="h-full flex flex-col bg-gradient-to-b from-blue-50 to-white rounded-3xl shadow-2xl border border-blue-100 overflow-hidden backdrop-blur-sm">
+                  <div className="bg-gradient-to-r from-blue-500 via-blue-600 to-cyan-500 text-white p-6 relative overflow-hidden">
+                    <div className="absolute inset-0 bg-white/10 backdrop-blur-sm"></div>
+                    <div className="relative z-10 flex items-center justify-between">
+                      <div>
+                        <h2 className="text-xl font-bold">Bob, o Engenheiro</h2>
+                        <p className="text-blue-100 text-sm opacity-90">Especialista em Otimização de Prompts</p>
+                      </div>
+                      <button
+                        onClick={() => handleClearChat('bob')}
+                        disabled={isLoading['clearBob'] || isLoading['history_bob']}
+                        className={`p-3 transition-all rounded-full ${isLoading['clearBob'] ? 'text-blue-300 cursor-not-allowed' : 'text-blue-100 hover:text-white hover:bg-white/20 hover:scale-110'}`}
+                        title="Limpar Chat com Bob"
+                      >
+                        <ArrowPathIcon className={`h-5 w-5 ${isLoading['clearBob'] ? 'animate-spin' : ''}`} />
+                      </button>
                     </div>
-                    <button
-                      onClick={() => handleClearChat('bob')}
-                      disabled={isLoading['clearBob'] || isLoading['history_bob']}
-                      className={`p-2 transition-colors rounded ${isLoading['clearBob'] ? 'text-gray-400 cursor-not-allowed' : 'text-red-300 hover:text-red-100 hover:bg-blue-700'}`}
-                      title="Limpar Chat com Bob"
-                    >
-                      <ArrowPathIcon className={`h-5 w-5 ${isLoading['clearBob'] ? 'animate-spin' : ''}`} />
-                    </button>
                   </div>
                   <div className="flex-1 overflow-hidden">
                     <ChatInterface 
@@ -409,9 +423,11 @@ export default function PlaygroundPage() {
                       initialMessages={bobMessages}
                       agentName="Bob, o Engenheiro"
                       agentAvatar="https://placehold.co/40/3b82f6/ffffff?text=BOB" 
-                      userAvatar={<UserCircleIcon className="h-8 w-8 text-gray-700" />}
+                      userAvatar={<UserCircleIcon className="h-8 w-8 text-slate-600" />}
                       hideHeader={true}
-                      setAudioPlaybackUrlForParent={setAudioPlaybackUrl} // Passar a função para ChatInterface
+                      setAudioPlaybackUrlForParent={setAudioPlaybackUrl}
+                      variant="playground"
+                      chatContext="bob"
                     />
                   </div>
                 </div>
@@ -419,31 +435,108 @@ export default function PlaygroundPage() {
             </Allotment>
           </div>
           
-          <div className="md:col-span-1 bg-white p-6 shadow-xl rounded-lg border border-gray-200 flex flex-col space-y-5 max-h-[calc(100vh-var(--header-height,80px)-80px)] overflow-y-auto">
-            <h2 className="text-xl font-semibold text-gray-700 border-b pb-3 mb-3">Controles do Prompt</h2>
+          <div className="md:col-span-1 bg-white/90 backdrop-blur-md p-8 shadow-2xl rounded-3xl border border-white/50 flex flex-col space-y-6 max-h-[calc(100vh-var(--header-height,80px)-80px)] overflow-y-auto">
+                          <div className="text-center">
+                <h2 className="text-2xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent mb-2">Controles do Prompt</h2>
+                <p className="text-slate-500 text-sm">Gerencie suas configurações de IA</p>
+              </div>
+
+              {/* Analytics Dashboard */}
+              <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-2xl p-6 border border-indigo-100">
+                <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center">
+                  <ChartBarIcon className="h-5 w-5 mr-2 text-indigo-500" />
+                  Analytics da Sessão
+                </h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-white/70 rounded-xl p-4 text-center">
+                    <div className="text-2xl font-bold text-purple-600">{secretariaMessages.length}</div>
+                    <div className="text-sm text-slate-600">Mensagens Secretária</div>
+                  </div>
+                  <div className="bg-white/70 rounded-xl p-4 text-center">
+                    <div className="text-2xl font-bold text-blue-600">{bobMessages.length}</div>
+                    <div className="text-sm text-slate-600">Mensagens Bob</div>
+                  </div>
+                  <div className="bg-white/70 rounded-xl p-4 text-center">
+                    <div className="text-2xl font-bold text-green-600">
+                      {Math.ceil((secretariaMessages.reduce((acc, msg) => acc + msg.text.length, 0) + 
+                                   bobMessages.reduce((acc, msg) => acc + msg.text.length, 0)) / 4)}
+                    </div>
+                    <div className="text-sm text-slate-600">Tokens Totais</div>
+                  </div>
+                  <div className="bg-white/70 rounded-xl p-4 text-center">
+                    <div className="text-2xl font-bold text-orange-600">
+                      {((secretariaMessages.length + bobMessages.length) * 1.2).toFixed(1)}s
+                    </div>
+                    <div className="text-sm text-slate-600">Tempo Médio</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Quick Actions Templates */}
+              <div className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-2xl p-6 border border-emerald-100">
+                <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center">
+                  <ChatBubbleBottomCenterTextIcon className="h-5 w-5 mr-2 text-emerald-500" />
+                  Ações Rápidas
+                </h3>
+                <div className="space-y-3">
+                  <button
+                    onClick={() => handleSendMessage('secretaria', 'text', 'Como você pode me ajudar hoje?')}
+                    className="w-full text-left px-4 py-3 bg-white/70 rounded-xl hover:bg-white hover:shadow-md transition-all duration-200 text-sm"
+                  >
+                    💬 Iniciar conversa amigável
+                  </button>
+                  <button
+                    onClick={() => handleSendMessage('secretaria', 'text', 'Teste sua capacidade de agendamento: preciso marcar uma consulta para próxima semana')}
+                    className="w-full text-left px-4 py-3 bg-white/70 rounded-xl hover:bg-white hover:shadow-md transition-all duration-200 text-sm"
+                  >
+                    📅 Testar agendamento
+                  </button>
+                  <button
+                    onClick={() => handleSendMessage('bob', 'text', 'Analise meu prompt atual e sugira 3 melhorias específicas')}
+                    className="w-full text-left px-4 py-3 bg-white/70 rounded-xl hover:bg-white hover:shadow-md transition-all duration-200 text-sm"
+                  >
+                    🔧 Pedir análise ao Bob
+                  </button>
+                  <button
+                    onClick={() => handleSendMessage('bob', 'text', 'Me ajude a criar uma versão mais empática do prompt da secretária')}
+                    className="w-full text-left px-4 py-3 bg-white/70 rounded-xl hover:bg-white hover:shadow-md transition-all duration-200 text-sm"
+                  >
+                    ❤️ Melhorar empatia
+                  </button>
+                </div>
+              </div>
             <button 
               onClick={handleViewEditPrompt}
               disabled={isLoading['viewPrompt']}
-              className="w-full flex items-center justify-center px-4 py-3 border border-transparent rounded-lg shadow-md text-base font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors disabled:opacity-50"
+              className="w-full flex items-center px-6 py-4 bg-blue-50 border border-blue-200 rounded-2xl text-base font-medium text-slate-800 hover:bg-blue-100 hover:shadow-xl hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:ring-offset-2 transition-all duration-300 disabled:opacity-50 group"
             >
-              <BookOpenIcon className="h-5 w-5 mr-2" />
-              {isLoading['viewPrompt'] ? 'Buscando...' : 'Ver/Editar Prompt (Laboratório)'}
+              <BookOpenIcon className="h-6 w-6 mr-4 text-blue-500 group-hover:scale-110 transition-transform duration-300" />
+              <div className="text-left flex-1">
+                <div className="font-bold text-lg">{isLoading['viewPrompt'] ? 'Buscando...' : 'Prompt de Laboratório'}</div>
+                <div className="text-sm text-slate-600">Ver e editar configurações</div>
+              </div>
             </button>
             <button 
               onClick={handleDiscardChanges}
               disabled={isLoading['discardPrompt'] || isLoading['viewPrompt']}
-              className="w-full flex items-center justify-center px-4 py-3 border border-gray-300 rounded-lg shadow-md text-base font-medium text-gray-700 bg-white hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors disabled:opacity-50"
+              className="w-full flex items-center px-6 py-4 bg-orange-50 border border-orange-200 rounded-2xl text-base font-medium text-slate-800 hover:bg-orange-100 hover:shadow-xl hover:scale-105 focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:ring-offset-2 transition-all duration-300 disabled:opacity-50 group"
             >
-              <ArchiveBoxXMarkIcon className="h-5 w-5 mr-2" />
-              {isLoading['discardPrompt'] ? 'Descartando...' : 'Descartar Alterações (Laboratório)'}
+              <ArchiveBoxXMarkIcon className="h-6 w-6 mr-4 text-orange-500 group-hover:scale-110 transition-transform duration-300" />
+              <div className="text-left flex-1">
+                <div className="font-bold text-lg">{isLoading['discardPrompt'] ? 'Descartando...' : 'Descartar Alterações'}</div>
+                <div className="text-sm text-slate-600">Reverter para versão atual</div>
+              </div>
             </button>
             <button 
               onClick={handlePublishPrompt}
               disabled={isLoading['publishPrompt'] || isLoading['viewPrompt']}
-              className="w-full flex items-center justify-center px-4 py-3 border border-transparent rounded-lg shadow-md text-base font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors disabled:opacity-50"
+              className="w-full flex items-center px-6 py-4 bg-green-50 border border-green-200 rounded-2xl text-base font-medium text-slate-800 hover:bg-green-100 hover:shadow-xl hover:scale-105 focus:outline-none focus:ring-2 focus:ring-green-500/50 focus:ring-offset-2 transition-all duration-300 disabled:opacity-50 group"
             >
-              <CloudArrowUpIcon className="h-5 w-5 mr-2" />
-              {isLoading['publishPrompt'] ? 'Publicando...' : 'Publicar para Produção'}
+              <CloudArrowUpIcon className="h-6 w-6 mr-4 text-green-500 group-hover:scale-110 transition-transform duration-300" />
+              <div className="text-left flex-1">
+                <div className="font-bold text-lg">{isLoading['publishPrompt'] ? 'Publicando...' : 'Publicar para Produção'}</div>
+                <div className="text-sm text-slate-600">Ativar configurações atuais</div>
+              </div>
             </button>
           </div>
         </div>
