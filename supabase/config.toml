@@ -309,14 +309,15 @@ s3_secret_key = "env(S3_SECRET_KEY)"
 
 [functions.get-delegate-gcal-token]
 enabled = true
-verify_jwt = true
+verify_jwt = false
+# Custom security implementation with multiple layers:
+# 1. Secret-based authentication (X-Internal-Secret header)
+# 2. Request structure validation (UUID format, required fields)
+# 3. Optional IP whitelisting (can be enabled if needed)
+# 4. Request ID tracking and detailed logging
+# 5. Production-safe error handling (no internal details leaked)
 import_map = "./functions/get-delegate-gcal-token/deno.json"
-# Uncomment to specify a custom file path to the entrypoint.
-# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
 entrypoint = "./functions/get-delegate-gcal-token/index.ts"
-# Specifies static files to be bundled with the function. Supports glob patterns.
-# For example, if you want to serve static HTML pages in your function:
-# static_files = [ "./functions/get-delegate-gcal-token/*.html" ]
 
 [functions.google-calendar-auth-callback]
 enabled = true
