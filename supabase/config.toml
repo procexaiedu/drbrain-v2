@@ -306,3 +306,50 @@ s3_region = "env(S3_REGION)"
 s3_access_key = "env(S3_ACCESS_KEY)"
 # Configures AWS_SECRET_ACCESS_KEY for S3 bucket
 s3_secret_key = "env(S3_SECRET_KEY)"
+
+[functions.get-delegate-gcal-token]
+enabled = true
+verify_jwt = true
+import_map = "./functions/get-delegate-gcal-token/deno.json"
+# Uncomment to specify a custom file path to the entrypoint.
+# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
+entrypoint = "./functions/get-delegate-gcal-token/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/get-delegate-gcal-token/*.html" ]
+
+[functions.google-calendar-auth-callback]
+enabled = true
+verify_jwt = false
+# Callback OAuth não deve exigir autenticação JWT
+entrypoint = "./functions/google-calendar-auth-callback/index.ts"
+
+[functions.google-calendar-auth-connect]
+enabled = true
+verify_jwt = true
+# Esta função precisa autenticar o usuário para obter o medico_id
+entrypoint = "./functions/google-calendar-auth-connect/index.ts"
+
+[functions.google-calendar-auth-status]
+enabled = true
+verify_jwt = true
+# Esta função precisa autenticar o usuário para verificar status
+entrypoint = "./functions/google-calendar-auth-status/index.ts"
+
+[functions.google-calendar-auth-disconnect]
+enabled = true
+verify_jwt = true
+# Esta função precisa autenticar o usuário para desconectar
+entrypoint = "./functions/google-calendar-auth-disconnect/index.ts"
+
+[functions.n8n-callback-prontuario-rascunho]
+enabled = true
+verify_jwt = false
+# Callback do N8N não deve exigir autenticação JWT
+entrypoint = "./functions/n8n-callback-prontuario-rascunho/index.ts"
+
+[functions.n8n-callback-registrar-feedback]
+enabled = true
+verify_jwt = false
+# Callback do N8N não deve exigir autenticação JWT
+entrypoint = "./functions/n8n-callback-registrar-feedback/index.ts"

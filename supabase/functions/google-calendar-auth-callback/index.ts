@@ -17,9 +17,38 @@ interface GoogleTokenResponse {
   token_type: string;
 }
 
+function getFrontendUrl(): string {
+  const frontendUrls = Deno.env.get('FRONTEND_URL') || 'http://localhost:3000';
+  const isProduction = Deno.env.get('SUPABASE_ENV') === 'PRODUCTION';
+  
+  console.log('getFrontendUrl: frontendUrls:', frontendUrls);
+  console.log('getFrontendUrl: isProduction:', isProduction);
+  
+  // Se há múltiplas URLs separadas por vírgula, escolha baseada no ambiente
+  if (frontendUrls.includes(',')) {
+    const urls = frontendUrls.split(',').map(url => url.trim());
+    console.log('getFrontendUrl: múltiplas URLs encontradas:', urls);
+    
+    // Em produção, use a URL que não seja localhost
+    if (isProduction) {
+      const prodUrl = urls.find(url => !url.includes('localhost')) || urls[0];
+      console.log('getFrontendUrl: URL de produção selecionada:', prodUrl);
+      return prodUrl;
+    } else {
+      // Em desenvolvimento, use localhost se disponível
+      const devUrl = urls.find(url => url.includes('localhost')) || urls[0];
+      console.log('getFrontendUrl: URL de desenvolvimento selecionada:', devUrl);
+      return devUrl;
+    }
+  }
+  
+  console.log('getFrontendUrl: URL única retornada:', frontendUrls);
+  return frontendUrls;
+}
+
 Deno.serve(async (req: Request) => {
   console.log(`google-calendar-auth-callback: ${req.method} ${req.url}`);
-  const frontendUrl = Deno.env.get('FRONTEND_URL') || '/';
+  const frontendUrl = getFrontendUrl();
 
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });

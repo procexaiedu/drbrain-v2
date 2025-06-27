@@ -1,5 +1,5 @@
 import { supabaseAdmin } from '../_shared/supabaseAdmin.ts';
-import { corsHeaders } from '../_shared/cors.ts';
+import { corsHeaders, getCorsHeaders } from '../_shared/cors.ts';
 
 console.log('Function prontuarios-crud loaded');
 
@@ -54,8 +54,10 @@ function extractRoute(url: string): { route: string; id?: string; action?: strin
 Deno.serve(async (req: Request) => {
   console.log(`${req.method} ${req.url}`);
   
+  const dynamicCors = getCorsHeaders(req);
+  
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response('ok', { headers: dynamicCors });
   }
 
   try {
@@ -64,7 +66,7 @@ Deno.serve(async (req: Request) => {
     if (!authHeader) {
       console.error('Authorization header missing');
       return new Response(JSON.stringify({ error: 'Authorization header missing' }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...dynamicCors, 'Content-Type': 'application/json' },
         status: 401,
       });
     }
