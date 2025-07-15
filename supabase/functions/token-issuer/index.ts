@@ -1,74 +1,92 @@
 // supabase/functions/token-issuer/index.ts
 
+import { create, getNumericDate, Header } from 'https://deno.land/x/djwt@v3.0.2/mod.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { corsHeaders } from '../_shared/cors.ts';
 
-// Chave secreta que apenas o seu workflow de IA deve conhecer.
-// Carregue-a das variáveis de ambiente seguras do Supabase.
+// Carrega as chaves secretas do ambiente seguro do Supabase
 const WORKFLOW_API_KEY = Deno.env.get('WORKFLOW_API_KEY');
-if (!WORKFLOW_API_KEY) {
-  console.error('A variável de ambiente WORKFLOW_API_KEY não está definida.');
+const JWT_SECRET = Deno.env.get('JWT_SECRET');
+
+if (!WORKFLOW_API_KEY || !JWT_SECRET) {
+  console.error('As variáveis de ambiente WORKFLOW_API_KEY e JWT_SECRET são obrigatórias.');
+}
+
+// Função para criar uma chave de assinatura CryptoKey
+async function getSigningKey(secret: string): Promise<CryptoKey> {
+  const encoder = new TextEncoder();
+  const keyData = encoder.encode(secret);
+  return await crypto.subtle.importKey(
+    'raw',
+    keyData,
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign', 'verify']
+  );
 }
 
 // Função principal que responde às requisições
 Deno.serve(async (req) => {
-  // Responde à requisição pre-flight OPTIONS para CORS
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
 
+  // Apenas o método POST é permitido
+  if (req.method !== 'POST') {
+    return new Response(JSON.stringify({ error: 'Método não permitido. Utilize POST.' }), {
+      status: 405, // Method Not Allowed
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
   try {
-    // 1. Autenticação do Sistema de IA (o "cliente")
+    // 1. Autenticação do Sistema de IA
     const requestApiKey = req.headers.get('x-api-key');
-    if (!requestApiKey || requestApiKey !== WORKFLOW_API_KEY) {
-      return new Response(JSON.stringify({ error: 'Acesso não autorizado: Chave de API do serviço inválida ou ausente.' }), {
+    if (requestApiKey !== WORKFLOW_API_KEY) {
+      return new Response(JSON.stringify({ error: 'Acesso não autorizado: Chave de API inválida.' }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    // 2. Validação da Requisição
+    // 2. Validação do Corpo da Requisição
     const { medico_id } = await req.json();
     if (!medico_id) {
-      return new Response(JSON.stringify({ error: 'O campo "medico_id" é obrigatório no corpo da requisição.' }), {
+      return new Response(JSON.stringify({ error: 'O campo "medico_id" é obrigatório.' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    // 3. Criação de um Cliente Supabase com privilégios de administrador
-    //    Isto é necessário para poder gerar tokens para outros usuários.
+    // 3. Verificação se o usuário (médico) realmente existe
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '', // Use a chave de "service_role"
-      { auth: { autoRefreshToken: false, persistSession: false } }
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
-
-    // 4. Geração do Token de Acesso para o médico
-    //    Usamos a função admin.generateLink, pois ela nos dá um token de acesso direto.
-    const { data: { user } , error: userError } = await supabaseAdmin.auth.admin.getUserById(medico_id);
+    const { data: user, error: userError } = await supabaseAdmin.auth.admin.getUserById(medico_id);
 
     if (userError || !user) {
-      throw new Error(`Usuário com medico_id ${medico_id} não encontrado.`);
+      throw new Error(`Usuário com medico_id ${medico_id} não encontrado ou erro ao buscar: ${userError?.message}`);
     }
 
-    // A propriedade "aud" precisa ser 'authenticated'
-    const { data, error } = await supabaseAdmin.auth.signInWithId(user.id);
+    // 4. Geração Manual do Token JWT
+    const key = await getSigningKey(JWT_SECRET!);
+    const payload = {
+      sub: medico_id, // Subject (o ID do usuário)
+      role: 'authenticated', // Papel do usuário
+      aud: 'authenticated', // Audience
+      iat: getNumericDate(0), // Issued at (agora)
+      exp: getNumericDate(60 * 60), // Expiration time (1 hora a partir de agora)
+    };
+    const header: Header = { alg: 'HS256', typ: 'JWT' };
 
-    if (error) {
-        throw new Error(`Não foi possível gerar o token: ${error.message}`);
-    }
-
-    const accessToken = data.session?.access_token;
-    if (!accessToken) {
-      throw new Error('Falha ao extrair o token de acesso da sessão gerada.');
-    }
+    const accessToken = await create(header, payload, key);
 
     // 5. Retorno do Token de Acesso
     return new Response(JSON.stringify({
       accessToken: accessToken,
-      expiresIn: data.session?.expires_in, // informa a validade do token em segundos
-      tokenType: 'Bearer'
+      tokenType: 'Bearer',
+      expiresIn: 3600, // 1 hora em segundos
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200,
