@@ -1,0 +1,26 @@
+Vamos retomar o desenvolvimento do meu projeto: um SaaS para médicos focado na gestão e gerenciamento completo da vida profissional, abrangendo tanto aspectos clínicos quanto administrativos/secretariais. O objetivo central é substituir a secretária humana por uma Secretária IA, personalizável pelo médico.
+1. Estado Atual do Projeto:
+Atualmente, o sistema já opera como um ecossistema funcional, orquestrado por agentes de IA no n8n. Estes agentes utilizam requisições HTTP como 'tools' para execução, com o suporte de Edge Functions no Supabase para o funcionamento geral.
+Os módulos existentes incluem:
+CRM
+Agenda
+Dashboard
+Prontuário
+Playground para personalização da Secretária IA.
+2. A Secretária IA - O Coração do Sistema:
+A Secretária IA é um workflow do n8n que integra todas as ferramentas via HTTP requests, orquestrando e gerenciando todos os módulos com autonomia. Nosso objetivo é expandir essa capacidade com novos módulos.
+3. Próximos Passos e Novos Módulos:
+A retomada do desenvolvimento será full-stack e modular, mantendo os padrões já estabelecidos. Sua principal contribuição será no desenvolvimento de dois novos módulos essenciais:
+Gestão de Estoque, Produtos e Serviços: Para controle de inventário e ofertas.
+Módulo Financeiro: Para gerenciamento de receitas e despesas.
+Ambos os módulos deverão ser integrados ao faturamento via Asaas, permitindo que o médico conecte sua conta através de um QR Code gerado pelo nosso sistema. A adição desses módulos, especialmente a integração com pagamentos, é crucial para consolidar nosso sistema como um ecossistema completo de funcionalidades orquestrado por IA para a gestão da vida do médico. Com eles, o SaaS estará finalizado e pronto para escalabilidade.
+4. Considerações Essenciais para o Desenvolvimento:
+Experiência do Usuário (UX): É fundamental focar na UX para garantir um fluxo de usabilidade otimizado, facilitando a transição de clínicas físicas para digitais (incluindo o gerenciamento de produtos físicos no sistema).
+Proposta de Valor: Precisamos que esses novos módulos não apenas tenham uma usabilidade ideal, mas que também sejam apresentados como um valor agregado significativo ao SaaS, impactando positivamente o dia a dia e a vida do médico.
+Integração Profunda e Orquestração por IA: A gestão de produtos, serviços e estoque deve ser profundamente integrada aos módulos existentes, formando um verdadeiro ecossistema interligado. Isso permitirá que os agentes de IA, via HTTP requests no n8n, orquestrem essas gestões, oferecendo ao médico não só economia de tempo, mas também insights valiosos e a capacidade de delegar completamente sua gestão, focando apenas no atendimento aos pacientes.
+5. Ações Iniciais e Brainstorming:
+Com base neste contexto, sua primeira tarefa será me auxiliar no brainstorming para definir as funcionalidades detalhadas dos novos módulos, sua estrutura (UX/UI alinhados ao projeto atual) e, crucialmente, como eles serão integrados aos módulos existentes para maximizar a automação e a delegação via agentes de IA.
+Lembre-se: Nosso sistema já possui uma vasta capacidade de integração via HTTP requests, orquestrada pelo n8n.
+Integração com Pacientes: A Secretária IA personalizada pelo médico é projetada para interagir com os pacientes em todas as etapas da jornada (pré e pós-consulta). Para isso, integraremos um QR Code do EvolutionAPI (sistema de WhatsApp) que o médico escaneará para conectar sua Secretária IA aos pacientes.
+Para iniciar, por favor, dedique um tempo para pesquisar e compreender o projeto a fundo, bem como as tecnologias externas mencionadas (Asaas, EvolutionAPI, n8n, Supabase, etc.) para insights e contexto.
+Aguardo seu retorno em português brasileiro.
