@@ -160,6 +160,28 @@ export default function CobrancasSection() {
               ))}
             </tbody>
           </table>
+          {/* Controles de Paginação */}
+          <nav
+            className="flex items-center justify-between border-t border-gray-200 bg-white px-4 py-3 sm:px-6"
+            aria-label="Pagination"
+          >
+            <div className="flex flex-1 justify-between sm:justify-end">
+              <button
+                onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                disabled={page === 1}
+                className="relative inline-flex items-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus-visible:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Anterior
+              </button>
+              <button
+                onClick={() => setPage((prev) => prev + 1)}
+                disabled={!data?.hasMore}
+                className="relative ml-3 inline-flex items-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus-visible:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Próxima
+              </button>
+            </div>
+          </nav>
         </div>
       ) : (
         <p className="text-center text-gray-500">Nenhuma cobrança encontrada.</p>
@@ -218,7 +240,27 @@ export default function CobrancasSection() {
                           <option value="CREDIT_CARD">Cartão de Crédito</option>
                         </select>
                       </div>
-                      {/* TODO: Adicionar PatientSelect para vincular a um paciente */}
+                      <div>
+                        <label htmlFor="paciente_id" className="block text-sm font-medium text-gray-700">Paciente</label>
+                        <PatientSelect
+                          selectedPatientId={currentCobranca?.paciente_id || null}
+                          onSelectPatient={(id) => setCurrentCobranca(prev => ({ ...prev, paciente_id: id || undefined }))}
+                        />
+                      </div>
+                      <div>
+                        <label htmlFor="servico_id" className="block text-sm font-medium text-gray-700">Serviço (Opcional)</label>
+                        <ServiceSelect
+                          selectedServiceId={currentCobranca?.servico_id || null}
+                          onSelectService={(id) => setCurrentCobranca(prev => ({ ...prev, servico_id: id || undefined }))}
+                        />
+                      </div>
+                      <div>
+                        <label htmlFor="produto_id" className="block text-sm font-medium text-gray-700">Produto (Opcional)</label>
+                        <ProductSelect
+                          selectedProductId={currentCobranca?.produto_id || null}
+                          onSelectProduct={(id) => setCurrentCobranca(prev => ({ ...prev, produto_id: id || undefined }))}
+                        />
+                      </div>
                       <div className="mt-4 flex justify-end space-x-3">
                         <button
                           type="button"

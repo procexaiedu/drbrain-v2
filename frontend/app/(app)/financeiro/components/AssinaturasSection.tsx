@@ -144,6 +144,28 @@ export default function AssinaturasSection() {
               ))}
             </tbody>
           </table>
+          {/* Controles de Paginação */}
+          <nav
+            className="flex items-center justify-between border-t border-gray-200 bg-white px-4 py-3 sm:px-6"
+            aria-label="Pagination"
+          >
+            <div className="flex flex-1 justify-between sm:justify-end">
+              <button
+                onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                disabled={page === 1}
+                className="relative inline-flex items-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus-visible:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Anterior
+              </button>
+              <button
+                onClick={() => setPage((prev) => prev + 1)}
+                disabled={!data?.hasMore}
+                className="relative ml-3 inline-flex items-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus-visible:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Próxima
+              </button>
+            </div>
+          </nav>
         </div>
       ) : (
         <p className="text-center text-gray-500">Nenhuma assinatura encontrada.</p>
@@ -182,7 +204,20 @@ export default function AssinaturasSection() {
                   </Dialog.Title>
                   <div className="mt-4">
                     <form onSubmit={handleSubmit} className="space-y-4">
-                      {/* TODO: Adicionar PatientSelect para vincular a um paciente */}
+                      <div>
+                        <label htmlFor="paciente_id" className="block text-sm font-medium text-gray-700">Paciente</label>
+                        <PatientSelect
+                          selectedPatientId={currentAssinatura?.paciente_id || null}
+                          onSelectPatient={(id) => setCurrentAssinatura(prev => ({ ...prev, paciente_id: id || undefined }))}
+                        />
+                      </div>
+                      <div>
+                        <label htmlFor="servico_id" className="block text-sm font-medium text-gray-700">Serviço</label>
+                        <ServiceSelect
+                          selectedServiceId={currentAssinatura?.servico_id || null}
+                          onSelectService={(id) => setCurrentAssinatura(prev => ({ ...prev, servico_id: id || undefined }))}
+                        />
+                      </div>
                       {/* TODO: Adicionar ServiceSelect para vincular a um serviço */}
                       <div>
                         <label htmlFor="valor_recorrencia" className="block text-sm font-medium text-gray-700">Valor da Recorrência</label>

@@ -1,0 +1,8 @@
+feat: Implementa funcionalidades de Estoque e Financeiro v1.0
+
+Este commit introduz as seguintes funcionalidades:
+- Gerenciamento completo de estoque com movimentações e lotes.
+- Integração com Asaas para configuração de chaves PIX e geração de links de pagamento.
+- Melhorias nos formulários de produtos e serviços com novos campos.
+- Atualizações na navegação e componentes de UI relacionados.
+- Migração para a tabela `medico_configuracoes` para configurações específicas do médico.

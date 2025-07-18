@@ -5,23 +5,31 @@ import { useApp } from '@/context/AppContext';
 import {
   CubeIcon,
   TagIcon,
-  BuildingStorefrontIcon
+  BuildingStorefrontIcon,
+  CubeTransparentIcon, // Adicionado para Movimentações
+  ArchiveBoxIcon // Adicionado para Lotes
 } from '@heroicons/react/24/outline';
 import {
   CubeIcon as CubeIconSolid,
   TagIcon as TagIconSolid,
-  BuildingStorefrontIcon as BuildingStorefrontIconSolid
+  BuildingStorefrontIcon as BuildingStorefrontIconSolid,
+  CubeTransparentIcon as CubeTransparentIconSolid, // Adicionado para Movimentações
+  ArchiveBoxIcon as ArchiveBoxIconSolid // Adicionado para Lotes
 } from '@heroicons/react/24/solid';
 
 import ProdutosSection from './components/ProdutosSection';
 import ServicosSection from './components/ServicosSection';
 import FornecedoresSection from './components/FornecedoresSection';
+import MovimentacoesSection from './components/MovimentacoesSection'; // Novo
+import LotesSection from './components/LotesSection'; // Novo
 
 import { useProdutos } from './hooks/useProdutos';
 import { useServicos } from './hooks/useServicos';
 import { useFornecedores } from './hooks/useFornecedores';
+import { useMovimentacoes } from './hooks/useMovimentacoes'; // Novo
+import { useLotes } from './hooks/useLotes'; // Novo
 
-type EstoqueTab = 'produtos' | 'servicos' | 'fornecedores';
+type EstoqueTab = 'produtos' | 'servicos' | 'fornecedores' | 'movimentacoes' | 'lotes';
 
 export default function EstoquePage() {
   const { setPageTitle, setPageSubtitle, setBreadcrumbs } = useApp();
@@ -30,6 +38,8 @@ export default function EstoquePage() {
   const { data: produtosData } = useProdutos('', 1, 1000);
   const { data: servicosData } = useServicos('', 1, 1000);
   const { data: fornecedoresData } = useFornecedores('', 1, 1000);
+  const { data: movimentacoesData } = useMovimentacoes('', undefined, undefined, 1, 1000); // Novo
+  const { data: lotesData } = useLotes('', undefined, 1, 1000); // Novo
 
   useEffect(() => {
     setPageTitle('Estoque e Produtos');
@@ -61,6 +71,22 @@ export default function EstoquePage() {
       iconSolid: BuildingStorefrontIconSolid,
       description: 'Gerencie seus fornecedores',
       count: fornecedoresData?.total || 0,
+    },
+    {
+      id: 'movimentacoes' as const, // Novo
+      name: 'Movimentações',
+      icon: CubeTransparentIcon,
+      iconSolid: CubeTransparentIconSolid,
+      description: 'Controle de entradas e saídas',
+      count: movimentacoesData?.total || 0,
+    },
+    {
+      id: 'lotes' as const, // Novo
+      name: 'Lotes',
+      icon: ArchiveBoxIcon,
+      iconSolid: ArchiveBoxIconSolid,
+      description: 'Gerencie lotes de produtos',
+      count: lotesData?.total || 0,
     },
   ];
 
@@ -128,6 +154,8 @@ export default function EstoquePage() {
         {activeTab === 'produtos' && <ProdutosSection />}
         {activeTab === 'servicos' && <ServicosSection />}
         {activeTab === 'fornecedores' && <FornecedoresSection />}
+        {activeTab === 'movimentacoes' && <MovimentacoesSection />} { /* Novo */}
+        {activeTab === 'lotes' && <LotesSection />} { /* Novo */}
       </div>
     </div>
   );

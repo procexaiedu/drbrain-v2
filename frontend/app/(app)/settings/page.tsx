@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { UserCircleIcon, LinkIcon, ArrowRightIcon } from '@heroicons/react/24/outline';
+import { UserCircleIcon, LinkIcon, ArrowRightIcon, CurrencyDollarIcon } from '@heroicons/react/24/outline';
 
 const settingsOptions = [
   {
@@ -16,6 +16,12 @@ const settingsOptions = [
     description: 'Gerencie suas integrações com outros serviços, como o Google Calendar.',
     href: '/settings/connections',
     icon: LinkIcon,
+  },
+  {
+    name: 'Configurações Asaas PIX',
+    description: 'Gerencie sua chave PIX para recebimento de pagamentos via Asaas.',
+    href: '/settings/asaas-pix',
+    icon: CurrencyDollarIcon,
   },
 ];
 

@@ -14,7 +14,9 @@ import {
   BeakerIcon,
   HeartIcon,
   UsersIcon,
-  CalendarDaysIcon
+  CalendarDaysIcon,
+  CubeIcon, // Adicionado para Estoque
+  BanknotesIcon // Adicionado para Financeiro
 } from '@heroicons/react/24/outline';
 import { 
   HomeIcon as HomeIconSolid, 
@@ -22,7 +24,9 @@ import {
   CogIcon as CogIconSolid, 
   BeakerIcon as BeakerIconSolid,
   UsersIcon as UsersIconSolid,
-  CalendarDaysIcon as CalendarDaysIconSolid
+  CalendarDaysIcon as CalendarDaysIconSolid,
+  CubeIcon as CubeIconSolid, // Adicionado para Estoque
+  BanknotesIcon as BanknotesIconSolid // Adicionado para Financeiro
 } from '@heroicons/react/24/solid';
 
 // Logo moderno e elegante
@@ -81,6 +85,20 @@ const navItems = [
     icon: UsersIcon, 
     iconSolid: UsersIconSolid,
     description: 'Gestão de Leads e Pacientes'
+  },
+  { 
+    href: '/estoque', // Novo item de navegação
+    label: 'Estoque', 
+    icon: CubeIcon, 
+    iconSolid: CubeIconSolid,
+    description: 'Gestão de Produtos e Serviços'
+  },
+  { 
+    href: '/financeiro', // Novo item de navegação
+    label: 'Financeiro', 
+    icon: BanknotesIcon, 
+    iconSolid: BanknotesIconSolid,
+    description: 'Gestão de Cobranças e Transações'
   },
   { 
     href: '/settings',

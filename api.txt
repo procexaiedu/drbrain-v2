@@ -1,0 +1,101 @@
+GET /docs
+Acessa página com documentação gerada pelo Swagger.
+
+GET /visualizer
+Acessa cliente para consulta das informações e visualização das imagens dos medicamentos.
+
+GET /medicines
+Retorna página contendo lista de medicamentos simples em ordem alfabética.
+
+GET /medicines/available/{nome do medicamento}
+Retorna lista de strings contendo o nome dos medicamentos disponíveis para consulta.
+
+GET /medicines/{número do processo do medicamento}
+Retorna medicamento completo incluindo sua imagem no formato base 64.
+
+Query Params
+GET /medicines/{número do processo do medicamento}/?index={index da imagem}
+Altera a imagem retornada baseando-se na posição da imagem no Google Imagens (por padrão a primeira imagem é retornada).
+
+Tip
+
+O termo buscado no Google Imagens para captura da imagem é: "medicamento" + {nome do medicamento} + {razão social da empresa farmacêutica}
+
+GET /medicines/?search={nome do medicamento}
+Retorna página contendo lista de medicamentos simples com o mesmo nome porém de diferentes empresas farmacêuticas.
+
+GET /medicines/?size={quantidade de medicamentos}
+Limita quantidade de medicamentos retornados (por padrão 5 medicamentos são retornados).
+
+GET /medicines/?page={quantidade de medicamentos}
+Consulta nova página de medicamentos.
+
+Modelos
+Medicamento simples
+{
+  "idProduto": int
+  "numeroRegistro": str
+  "nomeProduto": str
+  "expediente": str
+  "razaoSocial": str
+  "cnpj": str
+  "numeroTransacao": str
+  "data": str
+  "numProcesso": str
+  "idBulaPacienteProtegido": str
+  "idBulaProfissionalProtegido": str
+  "dataAtualizacao": str
+}
+Medicamento completo
+{
+  "ordem": int
+  "imagemMedicamento": str
+  "idBulaPaciente": str
+  "idBulaProfissional": str
+  "medicamento": {
+    "codigo": int
+    "nome": str
+    "numeroRegistro": str
+    "tipo": {
+      "codigo": int
+      "descricao": Optional[str]
+    }
+    "categoria": Optional[str]
+    "situacaoRotulo": Optional[str]
+    "dataVencimento": Optional[str]
+    "mesAnoVencimento": str
+    "dataVencimentoRegistro": str
+    "principioAtivo": str
+    "situacaoApresentacao": str
+    "dataRegistro": str
+    "categoriaRegulatoria": {
+      "codigo": int
+      "descricao": str
+    }
+    "medicamentoReferencia": str
+    "categoriaProduto": Optional[str]
+    "complemento": Optional[str]
+    "tipoAutorizacao": str
+    "tipoPriorizacao": Optional[str]
+    "descricaoMedicamentoNotificado": Optional[str]
+    "categoriaMedicamentoNotificado": str
+    "codigoNotificacao": int
+    "sinonimos": str
+    "indicacoes": str
+    "dataCancelamento": Optional[str]
+    "numeroRegistroFormatado": str
+    "mesAnoVencimentoFormatado": str
+    "acancelar": boolean
+  }
+  "empresaFarmaceutica": {
+    "cnpj": str
+    "razaoSocial": str
+    "numeroAutorizacao": str
+    "cnpjFormatado": str
+  }
+  "processo": {
+    "numero": str
+    "situacao": int
+    "numeroProcessoFormatado": str
+  }
+}

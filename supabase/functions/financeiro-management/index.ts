@@ -203,6 +203,25 @@ async function getOrCreateAsaasCustomer(medico_id: string, paciente_id: string, 
   return asaasCustomer.id;
 }
 
+async function getMedicoConfiguracoes(medico_id: string) {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('medico_configuracoes')
+      .select('asaas_pix_key')
+      .eq('medico_id', medico_id)
+      .single();
+
+    if (error && error.code !== 'PGRST116') { // PGRST116 = no rows found
+      console.error('Erro ao buscar configurações do médico:', error);
+      return null;
+    }
+    return data;
+  } catch (error) {
+    console.error('Erro em getMedicoConfiguracoes:', error);
+    return null;
+  }
+}
+
 // Funções de CRUD para Cobranças
 async function listCobrancas(medico_id: string, req: Request) {
   try {
@@ -293,9 +312,13 @@ async function createCobranca(medico_id: string, req: Request) {
 
     // Se for PIX, adicionar a chave Pix do médico
     if (metodo_pagamento === 'PIX') {
-      // TODO: Buscar a chave Pix do médico em algum lugar (ex: medico_profiles.configuracoes_adicionais_json)
-      // asaasPayload.pixAddressKey = 'sua_chave_pix_aqui';
-      // asaasPayload.pixAddressKeyType = 'EVP'; // CPF, CNPJ, EMAIL, PHONE, EVP
+      const medicoConfig = await getMedicoConfiguracoes(medico_id);
+      if (medicoConfig?.asaas_pix_key) {
+        asaasPayload.pixAddressKey = medicoConfig.asaas_pix_key;
+        asaasPayload.pixAddressKeyType = 'EVP'; // Assumindo EVP (chave aleatória) ou você pode adicionar um campo para o tipo da chave
+      } else {
+        console.warn('Chave PIX do Asaas não configurada para o médico. Cobrança PIX pode falhar.');
+      }
     }
 
     const asaasResponse = await fetch('https://api.asaas.com/v3/payments', {
@@ -504,7 +527,13 @@ async function gerarLinkCobrancaAsaas(medico_id: string, cobranca_id: string, re
     };
 
     if (cobranca.metodo_pagamento === 'PIX') {
-      // TODO: Buscar a chave Pix do médico
+      const medicoConfig = await getMedicoConfiguracoes(medico_id);
+      if (medicoConfig?.asaas_pix_key) {
+        asaasPayload.pixAddressKey = medicoConfig.asaas_pix_key;
+        asaasPayload.pixAddressKeyType = 'EVP'; // Assumindo EVP
+      } else {
+        console.warn('Chave PIX do Asaas não configurada para o médico. Geração de link PIX pode falhar.');
+      }
     }
 
     const asaasResponse = await fetch('https://api.asaas.com/v3/payments', {

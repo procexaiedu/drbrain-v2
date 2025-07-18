@@ -129,6 +129,28 @@ export default function ProdutosSection() {
               ))}
             </tbody>
           </table>
+          {/* Controles de Paginação */}
+          <nav
+            className="flex items-center justify-between border-t border-gray-200 bg-white px-4 py-3 sm:px-6"
+            aria-label="Pagination"
+          >
+            <div className="flex flex-1 justify-between sm:justify-end">
+              <button
+                onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                disabled={page === 1}
+                className="relative inline-flex items-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus-visible:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Anterior
+              </button>
+              <button
+                onClick={() => setPage((prev) => prev + 1)}
+                disabled={!data?.hasMore}
+                className="relative ml-3 inline-flex items-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus-visible:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Próxima
+              </button>
+            </div>
+          </nav>
         </div>
       ) : (
         <p className="text-center text-gray-500">Nenhum produto encontrado.</p>
@@ -181,17 +203,47 @@ export default function ProdutosSection() {
                       </div>
                       <div>
                         <label htmlFor="preco_venda" className="block text-sm font-medium text-gray-700">Preço de Venda</label>
-                        <input type="number" name="preco_venda" id="preco_venda" value={currentProduto?.preco_venda || 0} onChange={handleChange} required step="0.01" className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
+                        <input type="text" name="preco_venda" id="preco_venda" value={currentProduto?.preco_venda || 0} onChange={handleChange} required className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
                       </div>
                       <div>
                         <label htmlFor="custo_aquisicao" className="block text-sm font-medium text-gray-700">Custo de Aquisição</label>
-                        <input type="number" name="custo_aquisicao" id="custo_aquisicao" value={currentProduto?.custo_aquisicao || 0} onChange={handleChange} required step="0.01" className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
+                        <input type="text" name="custo_aquisicao" id="custo_aquisicao" value={currentProduto?.custo_aquisicao || 0} onChange={handleChange} required className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
                       </div>
                       <div>
                         <label htmlFor="estoque_minimo" className="block text-sm font-medium text-gray-700">Estoque Mínimo</label>
-                        <input type="number" name="estoque_minimo" id="estoque_minimo" value={currentProduto?.estoque_minimo || 0} onChange={handleChange} required className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
+                        <input type="text" name="estoque_minimo" id="estoque_minimo" value={currentProduto?.estoque_minimo || 0} onChange={handleChange} required className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
                       </div>
-                      {/* TODO: Adicionar campos para codigo_barras, principio_ativo, etc. */}
+                      <div>
+                        <label htmlFor="codigo_barras" className="block text-sm font-medium text-gray-700">Código de Barras (Opcional)</label>
+                        <input type="text" name="codigo_barras" id="codigo_barras" value={currentProduto?.codigo_barras || ''} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
+                      </div>
+                      <div>
+                        <label htmlFor="principio_ativo" className="block text-sm font-medium text-gray-700">Princípio Ativo (Opcional)</label>
+                        <input type="text" name="principio_ativo" id="principio_ativo" value={currentProduto?.principio_ativo || ''} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
+                      </div>
+                      <div>
+                        <label htmlFor="categoria_regulatoria" className="block text-sm font-medium text-gray-700">Categoria Regulatória (Opcional)</label>
+                        <input type="text" name="categoria_regulatoria" id="categoria_regulatoria" value={currentProduto?.categoria_regulatoria || ''} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
+                      </div>
+                      <div>
+                        <label htmlFor="numero_registro_anvisa" className="block text-sm font-medium text-gray-700">Registro ANVISA (Opcional)</label>
+                        <input type="text" name="numero_registro_anvisa" id="numero_registro_anvisa" value={currentProduto?.numero_registro_anvisa || ''} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
+                      </div>
+                      <div>
+                        <label htmlFor="empresa_detentora_registro" className="block text-sm font-medium text-gray-700">Empresa Detentora Registro (Opcional)</label>
+                        <input type="text" name="empresa_detentora_registro" id="empresa_detentora_registro" value={currentProduto?.empresa_detentora_registro || ''} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
+                      </div>
+                      <div>
+                        <label htmlFor="fornecedor_id" className="block text-sm font-medium text-gray-700">Fornecedor (Opcional)</label>
+                        <FornecedorSelect
+                          selectedFornecedorId={currentProduto?.fornecedor_id || null}
+                          onSelectFornecedor={(id) => setCurrentProduto(prev => ({ ...prev, fornecedor_id: id || undefined }))}
+                        />
+                      </div>
+                      <div>
+                        <label htmlFor="localizacao_estoque" className="block text-sm font-medium text-gray-700">Localização no Estoque (Opcional)</label>
+                        <input type="text" name="localizacao_estoque" id="localizacao_estoque" value={currentProduto?.localizacao_estoque || ''} onChange={handleChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
+                      </div>
                       <div className="mt-4 flex justify-end space-x-3">
                         <button
                           type="button"

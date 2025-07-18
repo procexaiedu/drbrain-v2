@@ -31,6 +31,8 @@ function extractRoute(url: string): { route: string; id?: string; action?: strin
   if (parts.length === 1) {
     if (parts[0] === 'produtos' || parts[0] === 'servicos') {
       return { route: 'list', type: parts[0] };
+    } else if (parts[0] === 'barcode-lookup') { // Nova rota para lookup de código de barras
+      return { route: 'barcode-lookup' };
     } else {
       return { route: 'single', id: parts[0] }; // Assume que é um ID de produto/serviço
     }
