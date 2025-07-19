@@ -354,3 +354,8 @@ enabled = true
 verify_jwt = false
 # Callback do N8N não deve exigir autenticação JWT
 entrypoint = "./functions/n8n-callback-registrar-feedback/index.ts"
+
+[functions.whatsapp-manager]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/whatsapp-manager/index.ts"

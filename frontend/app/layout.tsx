@@ -1,6 +1,7 @@
 'use client'; // Adicionar no topo se ainda não for client component
 
 // Conteúdo inicial para o layout raiz
+import { Toaster } from '@/components/ui/toaster';
 import '@/styles/globals.css';
 import React from 'react';
 import { AuthProvider } from '@/context/AuthContext';
@@ -24,6 +25,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <QueryClientProvider client={queryClient}> {/* Provedor do React Query */}
           <AuthProvider>
             {children}
+            <Toaster />
           </AuthProvider>
           <ReactQueryDevtools initialIsOpen={false} /> {/* Opcional: Devtools */}
         </QueryClientProvider>

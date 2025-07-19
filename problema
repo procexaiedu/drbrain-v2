@@ -1,0 +1,108 @@
+[16:12:40.969] Running build in Washington, D.C., USA (East) – iad1
+[16:12:40.969] Build machine configuration: 2 cores, 8 GB
+[16:12:40.983] Cloning github.com/procexaiedu/drbrain-v2 (Branch: master, Commit: 24a100c)
+[16:12:41.247] Cloning completed: 264.000ms
+[16:12:44.280] Restored build cache from previous deployment (CdJzPz1Y4t2q8Db3SmajzcvghPXn)
+[16:12:47.897] Running "vercel build"
+[16:12:48.382] Vercel CLI 44.4.3
+[16:12:48.848] Running "install" command: `npm install`...
+[16:12:50.585] npm warn ERESOLVE overriding peer dependency
+[16:12:50.586] npm warn While resolving: use-resize-observer@9.1.0
+[16:12:50.587] npm warn Found: react@19.1.0
+[16:12:50.587] npm warn node_modules/react
+[16:12:50.587] npm warn   react@"^19.1.0" from the root project
+[16:12:50.587] npm warn   29 more (@floating-ui/react, @floating-ui/react-dom, ...)
+[16:12:50.588] npm warn
+[16:12:50.588] npm warn Could not resolve dependency:
+[16:12:50.588] npm warn peer react@"16.8.0 - 18" from use-resize-observer@9.1.0
+[16:12:50.588] npm warn node_modules/allotment/node_modules/use-resize-observer
+[16:12:50.589] npm warn   use-resize-observer@"^9.0.0" from allotment@1.20.3
+[16:12:50.589] npm warn   node_modules/allotment
+[16:12:50.589] npm warn
+[16:12:50.589] npm warn Conflicting peer dependency: react@18.3.1
+[16:12:50.589] npm warn node_modules/react
+[16:12:50.590] npm warn   peer react@"16.8.0 - 18" from use-resize-observer@9.1.0
+[16:12:50.590] npm warn   node_modules/allotment/node_modules/use-resize-observer
+[16:12:50.590] npm warn     use-resize-observer@"^9.0.0" from allotment@1.20.3
+[16:12:50.590] npm warn     node_modules/allotment
+[16:12:50.594] npm warn ERESOLVE overriding peer dependency
+[16:12:50.594] npm warn While resolving: use-resize-observer@9.1.0
+[16:12:50.595] npm warn Found: react-dom@19.1.0
+[16:12:50.595] npm warn node_modules/react-dom
+[16:12:50.595] npm warn   react-dom@"^19.1.0" from the root project
+[16:12:50.595] npm warn   17 more (@floating-ui/react, @floating-ui/react-dom, ...)
+[16:12:50.595] npm warn
+[16:12:50.595] npm warn Could not resolve dependency:
+[16:12:50.595] npm warn peer react-dom@"16.8.0 - 18" from use-resize-observer@9.1.0
+[16:12:50.595] npm warn node_modules/allotment/node_modules/use-resize-observer
+[16:12:50.595] npm warn   use-resize-observer@"^9.0.0" from allotment@1.20.3
+[16:12:50.596] npm warn   node_modules/allotment
+[16:12:50.596] npm warn
+[16:12:50.596] npm warn Conflicting peer dependency: react-dom@18.3.1
+[16:12:50.596] npm warn node_modules/react-dom
+[16:12:50.596] npm warn   peer react-dom@"16.8.0 - 18" from use-resize-observer@9.1.0
+[16:12:50.596] npm warn   node_modules/allotment/node_modules/use-resize-observer
+[16:12:50.596] npm warn     use-resize-observer@"^9.0.0" from allotment@1.20.3
+[16:12:50.596] npm warn     node_modules/allotment
+[16:12:52.207] 
+[16:12:52.208] changed 17 packages, and audited 636 packages in 3s
+[16:12:52.209] 
+[16:12:52.209] 287 packages are looking for funding
+[16:12:52.209]   run `npm fund` for details
+[16:12:52.232] 
+[16:12:52.232] 2 low severity vulnerabilities
+[16:12:52.233] 
+[16:12:52.233] To address all issues, run:
+[16:12:52.233]   npm audit fix
+[16:12:52.233] 
+[16:12:52.234] Run `npm audit` for details.
+[16:12:52.268] Detected Next.js version: 15.3.2
+[16:12:52.269] Running "npm run build"
+[16:12:52.385] 
+[16:12:52.385] > drbrain-frontend@0.1.0 build
+[16:12:52.385] > next build
+[16:12:52.386] 
+[16:12:53.195]    ▲ Next.js 15.3.2
+[16:12:53.195] 
+[16:12:53.265]    Creating an optimized production build ...
+[16:13:04.587] Failed to compile.
+[16:13:04.588] 
+[16:13:04.588] ./app/(app)/settings/connections/whatsapp-connection.tsx
+[16:13:04.588] Module not found: Can't resolve '@/components/ui/button'
+[16:13:04.588] 
+[16:13:04.588] https://nextjs.org/docs/messages/module-not-found
+[16:13:04.588] 
+[16:13:04.588] Import trace for requested module:
+[16:13:04.588] ./app/(app)/settings/connections/page.tsx
+[16:13:04.588] 
+[16:13:04.588] ./app/(app)/settings/connections/whatsapp-connection.tsx
+[16:13:04.588] Module not found: Can't resolve '@/components/ui/card'
+[16:13:04.588] 
+[16:13:04.588] https://nextjs.org/docs/messages/module-not-found
+[16:13:04.588] 
+[16:13:04.588] Import trace for requested module:
+[16:13:04.588] ./app/(app)/settings/connections/page.tsx
+[16:13:04.588] 
+[16:13:04.589] ./app/(app)/settings/connections/whatsapp-connection.tsx
+[16:13:04.589] Module not found: Can't resolve '@/components/ui/use-toast'
+[16:13:04.589] 
+[16:13:04.589] https://nextjs.org/docs/messages/module-not-found
+[16:13:04.589] 
+[16:13:04.589] Import trace for requested module:
+[16:13:04.589] ./app/(app)/settings/connections/page.tsx
+[16:13:04.589] 
+[16:13:04.589] ./app/(app)/whatsapp/page.tsx
+[16:13:04.589] Module not found: Can't resolve '@/components/ui/button'
+[16:13:04.589] 
+[16:13:04.589] https://nextjs.org/docs/messages/module-not-found
+[16:13:04.589] 
+[16:13:04.589] ./app/(app)/whatsapp/page.tsx
+[16:13:04.589] Module not found: Can't resolve '@/components/ui/use-toast'
+[16:13:04.589] 
+[16:13:04.589] https://nextjs.org/docs/messages/module-not-found
+[16:13:04.589] 
+[16:13:04.612] 
+[16:13:04.612] > Build failed because of webpack errors
+[16:13:04.667] Error: Command "npm run build" exited with 1
+[16:13:05.006] 
+[16:13:07.780] Exiting build container
