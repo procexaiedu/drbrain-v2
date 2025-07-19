@@ -1,0 +1,52 @@
+Módulo "Financeiro"
+Pense no módulo financeiro como o seu caixa e controle de pagamentos. Ele te ajuda a gerenciar tudo o que entra e sai de dinheiro na sua clínica.
+O que você pode fazer com ele:
+Gerenciar Cobranças:
+Você pode criar novas cobranças para seus pacientes.
+Informar o valor, a data de vencimento e o que está sendo cobrado (por exemplo, uma consulta, um procedimento, um produto).
+O sistema se conecta com o Asaas (uma plataforma de pagamentos) para gerar automaticamente links de pagamento, boletos ou até QR Codes para PIX. Isso facilita muito para o paciente pagar.
+Você consegue acompanhar o status de cada cobrança: se está pendente, se já foi paga, se venceu, etc.
+Registrar Transações:
+Aqui, você controla todas as receitas (dinheiro que entra) e despesas (dinheiro que sai).
+Pode registrar detalhes como o valor, a data, a descrição e a categoria (por exemplo, "salário", "aluguel", "material").
+É como ter um livro-caixa digital para saber para onde seu dinheiro está indo e de onde está vindo.
+Administrar Assinaturas:
+Se você oferece serviços recorrentes (como um plano de acompanhamento mensal), este módulo te ajuda a criar e gerenciar as assinaturas dos pacientes.
+Ele também se integra com o Asaas para automatizar as cobranças periódicas dessas assinaturas.
+Como ele se integra com outras partes do sistema:
+Com os Pacientes (CRM):
+Quando você cria uma cobrança ou assinatura, ela é sempre vinculada a um paciente específico. Isso significa que você pode ver o histórico financeiro de cada paciente.
+O sistema cria ou localiza automaticamente o perfil do paciente no Asaas, garantindo que as cobranças sejam atribuídas corretamente.
+Com Serviços e Produtos (Estoque):
+As cobranças podem ser diretamente referenciadas a serviços ou produtos que você oferece, que são cadastrados no módulo de Estoque. Isso ajuda a detalhar o que está sendo pago.
+Com o Dashboard:
+Ele alimenta o dashboard principal com relatórios financeiros, mostrando seu total de receitas, despesas e o lucro/prejuízo em um determinado período, dando uma visão geral da saúde financeira da clínica.
+Com Webhooks (Asaas):
+O sistema recebe informações automáticas do Asaas sobre o status dos pagamentos. Por exemplo, quando um paciente paga um boleto, o Asaas avisa o sistema, que automaticamente marca a cobrança como "PAGA".
+Módulo "Estoque"
+O módulo de estoque é o seu armazém digital. Ele serve para controlar todos os produtos e serviços que você oferece, quem são seus fornecedores e como os itens se movimentam.
+O que você pode fazer com ele:
+Gerenciar Produtos:
+Você pode cadastrar todos os produtos que usa ou vende na clínica (medicamentos, insumos, materiais, etc.).
+Registrar informações importantes como nome, tipo, custo, preço de venda, qual fornecedor o vende e onde ele está guardado.
+Se o produto tem um código de barras, o sistema pode tentar preencher automaticamente alguns dados (como nome e composição) consultando uma base de dados da ANVISA, o que economiza tempo.
+Ele mostra o estoque atual de cada item e te avisa quando o estoque está baixo (se você definir um "estoque mínimo").
+Gerenciar Serviços:
+Além de produtos físicos, você também pode cadastrar os serviços que oferece (consultas, procedimentos, terapias).
+Isso ajuda a padronizar informações como descrição e preço.
+Gerenciar Fornecedores:
+Mantenha um cadastro completo de todos os seus fornecedores, com informações de contato, para facilitar a reposição de estoque.
+Controlar Movimentações:
+Aqui você registra cada vez que um produto entra (compra de fornecedor) ou sai (vendido, usado em um procedimento, descartado) do seu estoque.
+Isso é fundamental para ter um controle preciso e saber exatamente quanto de cada item você tem disponível.
+Cada movimentação atualiza automaticamente o estoque atual do produto.
+Gerenciar Lotes:
+Para produtos com data de validade (como medicamentos), você pode registrar os lotes, incluindo a quantidade e a data de validade.
+Quando você adiciona um lote, a quantidade é automaticamente somada ao estoque do produto. Se você ajusta a quantidade de um lote, o estoque também é atualizado.
+Como ele se integra com outras partes do sistema:
+Com o Financeiro:
+Os serviços e produtos cadastrados aqui são usados no módulo Financeiro para criar cobranças e assinaturas. Por exemplo, ao gerar uma cobrança para uma "Consulta de Retorno", o sistema busca os detalhes do serviço "Consulta de Retorno" que está no módulo de Estoque.
+Com o Dashboard:
+Ele fornece dados para o dashboard, como relatórios de estoque baixo ou o valor total do seu estoque, para te dar uma visão rápida da situação.
+Com a Base de Dados ANVISA:
+Para produtos com código de barras, o sistema tem uma integração para consultar automaticamente dados de uma base da ANVISA, pré-preenchendo algumas informações do produto para você. (Esta é uma base de dados externa, não criada pelo seu sistema, mas usada por ele).

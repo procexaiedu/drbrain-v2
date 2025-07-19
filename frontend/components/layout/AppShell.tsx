@@ -20,8 +20,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </main>
         
         {/* Componentes globais */}
-        {/* <FeedbackButton /> */}
-        {/* <FeedbackModal /> */}
+        <FeedbackButton />
+        <FeedbackModal />
       </div>
     </AppProvider>
   );
