@@ -86,6 +86,33 @@ async function handleStatus(medico_id: string) {
     });
 }
 
+async function handleQrCode(medico_id: string) {
+    const { data: instance, error } = await supabaseAdmin
+        .from('whatsapp_instances')
+        .select('qrcode_base64, status')
+        .eq('medico_id', medico_id)
+        .single();
+
+    if (error || !instance) {
+        return new Response(JSON.stringify({ error: 'Instance not found or QR code not available yet' }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 404,
+        });
+    }
+
+    if (instance.status !== 'qrcode' && instance.status !== 'connecting') {
+        return new Response(JSON.stringify({ error: 'Instance not in QR code state' }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 400,
+        });
+    }
+
+    return new Response(JSON.stringify({ qrcode: instance.qrcode_base64 }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200,
+    });
+}
+
 async function handleSendMessage(medico_id: string, req: Request) {
     const { recipient_jid, message_body } = await req.json();
 
@@ -223,6 +250,8 @@ Deno.serve(async (req: Request) => {
         return await handleConnect(medico_id);
       case 'status':
         return await handleStatus(medico_id);
+      case 'qrcode': // Novo caso para obter o QR Code
+        return await handleQrCode(medico_id);
       case 'send-message':
         return await handleSendMessage(medico_id, req);
       default:
