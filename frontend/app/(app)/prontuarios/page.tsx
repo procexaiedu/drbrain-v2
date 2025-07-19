@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   DocumentPlusIcon,
@@ -70,7 +70,7 @@ const ProntuariosPage: React.FC = () => {
   }, [setPageTitle, setPageSubtitle, setBreadcrumbs]);
 
   // Carregar prontuários
-  const loadProntuarios = async (pageNum: number = 1, reset: boolean = true) => {
+  const loadProntuarios = useCallback(async (pageNum: number = 1, reset: boolean = true) => {
     try {
       if (reset) {
         setIsLoading(true);
@@ -129,12 +129,13 @@ const ProntuariosPage: React.FC = () => {
         setIsLoading(false);
       }
     }
-  };
+  }, [searchTerm, statusFilter]);
+    
 
   // Carregar na inicialização
   useEffect(() => {
     loadProntuarios();
-  }, []);
+  }, [loadProntuarios]);
 
   // Recarregar quando filtros mudarem
   useEffect(() => {
@@ -143,7 +144,7 @@ const ProntuariosPage: React.FC = () => {
     }, 300);
 
     return () => clearTimeout(timeoutId);
-  }, [searchTerm, statusFilter]);
+  }, [searchTerm, statusFilter, loadProntuarios]);
 
   const handleProntuarioCreated = (prontuarioId: string) => {
     // Recarregar lista

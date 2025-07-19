@@ -21,14 +21,7 @@ const toastVariants = cva(
   }
 )
 
-interface ToastProps
-  extends React.HTMLAttributes<HTMLDivElement>,
-    VariantProps<typeof toastVariants> {
-  title?: React.ReactNode
-  description?: React.ReactNode
-  action?: React.ReactNode
-  closeButton?: React.ReactNode
-}
+
 
 const Toast = React.forwardRef<HTMLDivElement, ToastProps>(
   ({ className, variant, title, description, action, closeButton, ...props }, ref) => {
@@ -148,14 +141,15 @@ const ToastAction = React.forwardRef<HTMLButtonElement, React.ButtonHTMLAttribut
 )
 ToastAction.displayName = "ToastAction"
 
-export type ToastProps = {
+export type ToastProps = React.HTMLAttributes<HTMLDivElement> & {
   id: string
   title?: React.ReactNode
   description?: React.ReactNode
-  action?: React.ReactNode
+  action?: ToastActionElement
   closeButton?: React.ReactNode
   duration?: number
-  variant?: "default" | "destructive" | "success"
+  className?: string; // Explicitly added
+  variant?: "default" | "destructive" | "success"; // Explicitly added
 }
 
 export type ToastActionElement = React.ReactElement<typeof ToastAction>

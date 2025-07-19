@@ -32,11 +32,11 @@ export default function OnboardingPage() {
   const [isClearingHistory, setIsClearingHistory] = useState(false);
   const [clearHistoryError, setClearHistoryError] = useState<string | null>(null);
 
-  const agentAvatarNode = (
+  const agentAvatarNode = React.useMemo(() => (
     <div className="w-full h-full rounded-full bg-gradient-to-br from-purple-500 to-violet-600 flex items-center justify-center">
       <CpuChipIcon className="h-5 w-5 text-white" />
     </div>
-  );
+  ), []);
 
   const fetchMedicoProfile = useCallback(async () => {
     if (!user) return;

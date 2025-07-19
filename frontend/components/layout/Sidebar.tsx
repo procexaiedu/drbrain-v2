@@ -23,7 +23,7 @@ import {
   CogIcon as CogIconSolid, 
   BeakerIcon as BeakerIconSolid,
   UsersIcon as UsersIconSolid,
-  CalendarDaysIcon as CalendarDaysIconSolid
+  CalendarDaysIcon as CalendarDaysIconSolid,
   ChatBubbleLeftRightIcon as ChatBubbleLeftRightIconSolid
 } from '@heroicons/react/24/solid';
 

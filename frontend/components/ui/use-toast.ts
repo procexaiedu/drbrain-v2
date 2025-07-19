@@ -84,7 +84,7 @@ function dispatch(action: Action) {
   listeners.forEach((listener) => listener(memoryState))
 }
 
-type Toast = Pick<ToasterToast, "id" | "duration" | "type" | "title" | "description" | "action">
+type Toast = Pick<ToasterToast, "id" | "duration" | "variant" | "title" | "description" | "action">
 
 function createToast(toast: ToasterToast) {
   const { id, duration = TOAST_REMOVE_DELAY } = toast

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
-import { AppShell } from '@/components/layout/AppShell';
+import AppShell from '@/components/layout/AppShell';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 
@@ -86,10 +86,11 @@ export default function WhatsAppPage() {
       if (error) throw error;
 
       setNewMessage('');
-      toast({ title: "Mensagem enviada!" });
+      toast({ id: `message-sent-${Date.now()}`, title: "Mensagem enviada!" });
 
     } catch (error: any) {
       toast({
+        id: `error-send-message-${Date.now()}`,
         title: 'Erro ao Enviar Mensagem',
         description: error.message,
         variant: 'destructive',
@@ -100,7 +101,7 @@ export default function WhatsAppPage() {
   };
 
   return (
-    <AppShell title="WhatsApp">
+    <AppShell>
       <div className="flex h-full bg-gray-100">
         {/* Sidebar com a lista de conversas */}
         <div className="w-1/3 bg-white border-r border-gray-200">

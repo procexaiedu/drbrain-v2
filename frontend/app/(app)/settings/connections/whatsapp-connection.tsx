@@ -35,6 +35,7 @@ export default function WhatsAppConnection() {
       handleGetQrCode();
     } catch (error: any) {
       toast({
+        id: `error-connect-${Date.now()}`,
         title: 'Erro ao Conectar',
         description: error.message,
         variant: 'destructive',
@@ -52,6 +53,7 @@ export default function WhatsAppConnection() {
       setQrCode(data.qrcode);
     } catch (error: any) {
       toast({
+        id: `error-qrcode-${Date.now()}`,
         title: 'Erro ao Obter QR Code',
         description: error.message,
         variant: 'destructive',
