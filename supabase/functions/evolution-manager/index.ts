@@ -60,7 +60,8 @@ serve(async (req) => {
         const createResponse = await fetch(`${EVOLUTION_API_URL}/instance/create`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'apikey': EVOLUTION_API_KEY },
-          body: JSON.stringify({ instanceName, qrcode: true }) // Payload correto sem 'integration'
+          // CORREÇÃO DEFINITIVA: Removido o campo 'integration' que causava o erro 400.
+          body: JSON.stringify({ instanceName, qrcode: true })
         })
 
         if (!createResponse.ok && createResponse.status !== 403) { // 403 (Forbidden) significa que a instância já existe, o que é aceitável.
