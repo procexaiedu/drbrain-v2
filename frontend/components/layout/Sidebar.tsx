@@ -14,7 +14,8 @@ import {
   BeakerIcon,
   HeartIcon,
   UsersIcon,
-  CalendarDaysIcon
+  CalendarDaysIcon,
+  ChatBubbleLeftRightIcon
 } from '@heroicons/react/24/outline';
 import { 
   HomeIcon as HomeIconSolid, 
@@ -22,7 +23,8 @@ import {
   CogIcon as CogIconSolid, 
   BeakerIcon as BeakerIconSolid,
   UsersIcon as UsersIconSolid,
-  CalendarDaysIcon as CalendarDaysIconSolid
+  CalendarDaysIcon as CalendarDaysIconSolid,
+  ChatBubbleLeftRightIcon as ChatBubbleLeftRightIconSolid
 } from '@heroicons/react/24/solid';
 
 // Logo moderno e elegante
@@ -60,6 +62,13 @@ const navItems = [
     icon: CalendarDaysIcon,
     iconSolid: CalendarDaysIconSolid,
     description: 'Sua agenda de compromissos'
+  },
+  {
+    href: '/whatsapp',
+    label: 'WhatsApp Business',
+    icon: ChatBubbleLeftRightIcon,
+    iconSolid: ChatBubbleLeftRightIconSolid,
+    description: 'Secretaria IA no WhatsApp'
   },
   { 
     href: '/playground', 

@@ -3,7 +3,7 @@
 import React, { useState, useEffect, Suspense } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useSearchParams } from 'next/navigation';
-// import { Button } from '@/components/ui/button';
+import WhatsappConnectionCard from '@/components/whatsapp/WhatsappConnectionCard';
 
 // Componente wrapper para usar useSearchParams
 function ConnectionsPageContent() {
@@ -139,31 +139,38 @@ function ConnectionsPageContent() {
   return (
     <div className="container mx-auto p-4">
       <h1 className="text-2xl font-bold mb-6">Minhas Conexões</h1>
-      <div className="bg-white shadow-md rounded-lg p-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-xl font-semibold">Google Calendar</h2>
-            <p className="text-sm text-gray-600">
-              {isConnected ? 'Conectado' : 'Não conectado - Conecte para sincronizar sua agenda.'}
-            </p>
+      
+      <div className="space-y-6">
+        {/* WhatsApp Business Connection */}
+        <WhatsappConnectionCard />
+        
+        {/* Google Calendar Connection */}
+        <div className="bg-white shadow-md rounded-lg p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-semibold">Google Calendar</h2>
+              <p className="text-sm text-gray-600">
+                {isConnected ? 'Conectado' : 'Não conectado - Conecte para sincronizar sua agenda.'}
+              </p>
+            </div>
+            {isConnected ? (
+              <button 
+                onClick={handleDisconnect} 
+                disabled={isSubmitting} 
+                className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 disabled:opacity-50"
+              >
+                {isSubmitting ? 'Desconectando...' : 'Desconectar'}
+              </button>
+            ) : (
+              <button 
+                onClick={handleConnect} 
+                disabled={isSubmitting} 
+                className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
+              >
+                {isSubmitting ? 'Conectando...' : 'Conectar com Google Calendar'}
+              </button>
+            )}
           </div>
-          {isConnected ? (
-            <button 
-              onClick={handleDisconnect} 
-              disabled={isSubmitting} 
-              className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 disabled:opacity-50"
-            >
-              {isSubmitting ? 'Desconectando...' : 'Desconectar'}
-            </button>
-          ) : (
-            <button 
-              onClick={handleConnect} 
-              disabled={isSubmitting} 
-              className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
-            >
-              {isSubmitting ? 'Conectando...' : 'Conectar com Google Calendar'}
-            </button>
-          )}
         </div>
       </div>
     </div>

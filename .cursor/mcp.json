@@ -1,14 +1,20 @@
 {
     "mcpServers": {
-        "task-master-ai": {
-            "command": "npx",
-            "args": [
-                "-y",
-                "task-master-mcp"
-            ],
-            "env": {
-                "OPENAI_API_KEY": "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"
-            }
-        }
+      "n8n-mcp": {
+        "command": "docker",
+        "args": [
+          "run",
+          "-i",
+          "--rm",
+          "--init",
+          "-e", "MCP_MODE=stdio",
+          "-e", "LOG_LEVEL=error",
+          "-e", "DISABLE_CONSOLE_OUTPUT=true",
+          "-e", "N8N_API_URL=https://n8n.procexai.tech",
+          "-e", "N8N_API_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI5MmFlOGFmOC04NDI3LTQ5ODUtOWZiYi1hODA1ZGFjZDlhN2MiLCJpc3MiOiJuOG4iLCJhdWQiOiJwdWJsaWMtYXBpIiwiaWF0IjoxNzUzMTIwNjAzfQ.FbNyDjyz7updlfUyyCyL1ZOmLNeVZAHVx2yG47kJNc8",
+          "ghcr.io/czlonkowski/n8n-mcp:latest"
+        ]
+      }
     }
-}
+  }
+  
