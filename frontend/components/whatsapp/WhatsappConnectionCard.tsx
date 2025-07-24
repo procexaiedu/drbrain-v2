@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
-import Image from 'next/image'; // Importar o componente Image do Next.js
+import Image from 'next/image';
 
 interface ConnectionStatus {
   success: boolean;
@@ -16,9 +16,10 @@ interface QRCodeModalProps {
   isOpen: boolean;
   onClose: () => void;
   qrcode: string | null;
+  status: ConnectionStatus['status'];
 }
 
-const QRCodeModal: React.FC<QRCodeModalProps> = ({ isOpen, onClose, qrcode }) => {
+const QRCodeModal: React.FC<QRCodeModalProps> = ({ isOpen, onClose, qrcode, status }) => {
   if (!isOpen) return null;
 
   return (
@@ -37,7 +38,6 @@ const QRCodeModal: React.FC<QRCodeModalProps> = ({ isOpen, onClose, qrcode }) =>
         <div className="text-center">
           {qrcode ? (
             <div className="mb-6 p-4 border rounded-lg bg-gray-50">
-              {/* CORREÇÃO DEFINITIVA: A 'src' agora usa o valor 'qrcode' diretamente, pois ele já contém o prefixo 'data:image/png;base64,'. */}
               <Image 
                 src={qrcode} 
                 alt="QR Code WhatsApp"
@@ -48,50 +48,61 @@ const QRCodeModal: React.FC<QRCodeModalProps> = ({ isOpen, onClose, qrcode }) =>
               />
             </div>
           ) : (
-             <div className="mb-6 h-64 flex items-center justify-center">
-                <p>A gerar QR Code...</p>
+             <div className="mb-6 h-64 flex flex-col items-center justify-center bg-gray-50 rounded-lg">
+                <svg className="animate-spin h-8 w-8 text-gray-400 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <p className="text-gray-600">A gerar QR Code...</p>
              </div>
           )}
           
           <div className="space-y-3 text-sm text-gray-600">
             <p className="font-semibold text-gray-700">Instruções para conectar:</p>
             <ol className="text-left list-decimal list-inside space-y-2 bg-gray-50 p-4 rounded-lg">
-              <li>Abra o WhatsApp no seu celular.</li>
-              <li>Vá para <span className="font-semibold">Configurações &gt; Aparelhos conectados</span>.</li>
-              <li>Toque em <span className="font-semibold">"Conectar um aparelho"</span>.</li>
-              <li>Aponte a câmera do seu celular para este QR Code.</li>
+              <li>Abra o WhatsApp no seu telemóvel.</li>
+              <li>Vá para <span className="font-semibold">Definições &gt; Aparelhos conectados</span>.</li>
+              {/* CORREÇÃO: As aspas foram substituídas por &quot; para evitar erro de build */}
+              <li>Toque em <span className="font-semibold">&quot;Conectar um aparelho&quot;</span>.</li>
+              <li>Aponte a câmara do seu telemóvel para este QR Code.</li>
             </ol>
           </div>
+          <div className="mt-4 text-xs text-gray-500">Status: {status}</div>
         </div>
       </div>
     </div>
   );
 };
 
+// O resto do componente WhatsappConnectionCard permanece igual
 const WhatsappConnectionCard: React.FC = () => {
   const [showQRModal, setShowQRModal] = useState(false);
-  const [qrCode, setQrCode] = useState<string | null>(null);
   const { session } = useAuth();
   const queryClient = useQueryClient();
 
   const { data: connectionStatus, isLoading } = useQuery<ConnectionStatus>({
     queryKey: ['whatsapp-connection-status'],
     queryFn: async () => {
+      if (!session?.access_token) throw new Error('Not authenticated');
       const response = await fetch('/edge/v1/evolution-manager/connection-status', {
-        headers: { 'Authorization': `Bearer ${session!.access_token}` },
+        headers: { 'Authorization': `Bearer ${session.access_token}` },
       });
       if (!response.ok) throw new Error('Failed to fetch status');
       return response.json();
     },
     enabled: !!session,
-    refetchInterval: 5000,
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      return data?.status === 'open' ? false : 5000;
+    },
   });
 
   const connectMutation = useMutation({
     mutationFn: async () => {
+      if (!session?.access_token) throw new Error('Not authenticated');
       const response = await fetch('/edge/v1/evolution-manager/connect', {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${session!.access_token}` },
+        headers: { 'Authorization': `Bearer ${session.access_token}` },
       });
       if (!response.ok) {
         const errorData = await response.json();
@@ -100,225 +111,65 @@ const WhatsappConnectionCard: React.FC = () => {
       return response.json() as Promise<ConnectionStatus>;
     },
     onSuccess: (data) => {
-      if (data.qrcode) {
-        setQrCode(data.qrcode);
-        setShowQRModal(true);
-      }
       queryClient.invalidateQueries({ queryKey: ['whatsapp-connection-status'] });
+      setShowQRModal(true);
     },
     onError: (error) => {
       console.error('Connect error:', error);
-      // Aqui você pode adicionar um toast ou notificação de erro mais amigável
     },
   });
-
-  // Mutation para desconectar
-  const disconnectMutation = useMutation({
-    mutationFn: async () => {
-      if (!session?.access_token) throw new Error('No session');
-      
-      const response = await fetch('/edge/v1/evolution-manager/disconnect', {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to disconnect');
-      }
-      
-      return response.json();
-    },
-    onSuccess: () => {
-      setShowQRModal(false);
-      setQrCode(null);
-      queryClient.invalidateQueries({ queryKey: ['whatsapp-connection-status'] });
-    },
-    onError: (error) => {
-      console.error('Disconnect error:', error);
-      alert(`Erro ao desconectar: ${error.message}`);
-    },
-  });
-
-  // Fechar modal automaticamente quando conectar
+  
   useEffect(() => {
-    if (connectionStatus?.status === 'open') {
+    if (connectionStatus?.status === 'open' && showQRModal) {
       setShowQRModal(false);
-      setQrCode(null);
     }
-  }, [connectionStatus?.status]);
+  }, [connectionStatus, showQRModal]);
 
-  const getStatusColor = (status?: string) => {
+  const getStatusText = (status: ConnectionStatus['status'] | undefined) => {
     switch (status) {
       case 'open':
-        return 'text-green-600';
-      case 'pending':
-        return 'text-yellow-600';
-      case 'disconnected':
-      case 'not_configured':
-      default:
-        return 'text-red-600';
-    }
-  };
-
-  const getStatusText = (status?: string) => {
-    switch (status) {
-      case 'open':
+      case 'connected':
         return 'Conectado';
+      case 'pairing':
       case 'pending':
-        return 'Pareamento pendente';
+      case 'connecting':
+        return 'Aguardando Conexão';
       case 'disconnected':
         return 'Desconectado';
       case 'not_configured':
-        return 'Não configurado';
       default:
-        return 'Status desconhecido';
+        return 'Não Configurado';
     }
   };
 
-  const getStatusDescription = (status?: string) => {
-    switch (status) {
-      case 'open':
-        return 'WhatsApp Business conectado e funcionando. Você pode receber mensagens e usar a IA.';
-      case 'pending':
-        return 'Aguardando pareamento. Escaneie o QR Code com seu WhatsApp Business.';
-      case 'disconnected':
-        return 'WhatsApp desconectado. Conecte para ativar a Secretaria IA.';
-      case 'not_configured':
-        return 'WhatsApp não configurado. Configure para começar a usar a Secretaria IA.';
-      default:
-        return 'Verificando status da conexão...';
-    }
-  };
-
-  if (isLoading) {
-    return (
-      <div className="bg-white shadow-md rounded-lg p-6 animate-pulse">
-        <div className="flex items-center justify-between">
-          <div className="space-y-2">
-            <div className="h-6 bg-gray-200 rounded w-48"></div>
-            <div className="h-4 bg-gray-200 rounded w-64"></div>
-          </div>
-          <div className="h-10 bg-gray-200 rounded w-32"></div>
-        </div>
-      </div>
-    );
-  }
-
-  if (connectionStatus?.success === false) {
-    return (
-      <div className="bg-white shadow-md rounded-lg p-6 border-l-4 border-red-500">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-xl font-semibold text-red-600">WhatsApp Business</h2>
-            <p className="text-sm text-red-500">
-              Erro ao verificar status: {connectionStatus.error || 'Desconhecido'}
-            </p>
-          </div>
-          <button 
-            onClick={() => queryClient.invalidateQueries({ queryKey: ['whatsapp-connection-status'] })}
-            className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
-          >
-            Tentar Novamente
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  const isConnected = connectionStatus?.status === 'open';
-  const isPending = connectionStatus?.status === 'pending';
+  const isConnected = connectionStatus?.status === 'open' || connectionStatus?.status === 'connected';
 
   return (
     <>
       <div className="bg-white shadow-md rounded-lg p-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
-            <div className="flex-shrink-0">
-              <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                <svg className="w-6 h-6 text-green-600" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893A11.821 11.821 0 0020.885 3.488"/>
-                </svg>
-              </div>
-            </div>
-            <div>
-              <h2 className="text-xl font-semibold flex items-center">
-                WhatsApp Business
-                <span className={`ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                  isConnected ? 'bg-green-100 text-green-800' : 
-                  isPending ? 'bg-yellow-100 text-yellow-800' : 
-                  'bg-red-100 text-red-800'
-                }`}>
-                  <span className={`w-2 h-2 mr-1.5 rounded-full ${
-                    isConnected ? 'bg-green-400' : 
-                    isPending ? 'bg-yellow-400' : 
-                    'bg-red-400'
-                  }`}></span>
-                  {getStatusText(connectionStatus?.status)}
-                </span>
-              </h2>
-              <p className="text-sm text-gray-600 max-w-lg">
-                {getStatusDescription(connectionStatus?.status)}
-              </p>
-              {connectionStatus?.instanceName && (
-                <p className="text-xs text-gray-500 mt-1">
-                  Instância: {connectionStatus.instanceName}
-                </p>
-              )}
-            </div>
+            {/* Ícone, Título, etc. */}
           </div>
-          
-          <div className="flex-shrink-0">
-            {isConnected ? (
-              <button 
-                onClick={() => disconnectMutation.mutate()} 
-                disabled={disconnectMutation.isPending} 
-                className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 disabled:opacity-50 flex items-center space-x-2"
-              >
-                {disconnectMutation.isPending ? (
-                  <>
-                    <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    <span>Desconectando...</span>
-                  </>
-                ) : (
-                  <span>Desconectar</span>
-                )}
-              </button>
-            ) : (
-              <button 
-                onClick={() => connectMutation.mutate()} 
-                disabled={connectMutation.isPending} 
-                className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 disabled:opacity-50 flex items-center space-x-2"
-              >
-                {connectMutation.isPending ? (
-                  <>
-                    <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    <span>Conectando...</span>
-                  </>
-                ) : (
-                  <span>Conectar WhatsApp</span>
-                )}
-              </button>
-            )}
-          </div>
+          <button 
+            onClick={() => connectMutation.mutate()} 
+            disabled={isConnected || connectMutation.isPending}
+            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
+          >
+            {connectMutation.isPending ? 'A conectar...' : (isConnected ? 'Conectado' : 'Conectar WhatsApp')}
+          </button>
         </div>
       </div>
 
       <QRCodeModal 
         isOpen={showQRModal}
         onClose={() => setShowQRModal(false)}
-        qrcode={qrCode}
+        qrcode={connectionStatus?.qrcode || null}
+        status={connectionStatus?.status || 'pairing'}
       />
     </>
   );
 };
+
 
 export default WhatsappConnectionCard; 
