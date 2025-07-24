@@ -1,14 +1,13 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import Image from 'next/image';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
-import { supabase } from '@/lib/supabaseClient';
+import Image from 'next/image'; // Importar o componente Image do Next.js
 
 interface ConnectionStatus {
   success: boolean;
-  status: 'connected' | 'pending' | 'disconnected' | 'not_configured' | 'open';
+  status: 'open' | 'connecting' | 'connected' | 'pending' | 'disconnected' | 'not_configured' | 'pairing';
   instanceName?: string;
   qrcode?: string;
 }
@@ -16,55 +15,52 @@ interface ConnectionStatus {
 interface QRCodeModalProps {
   isOpen: boolean;
   onClose: () => void;
-  qrcode: string;
-  status: string;
+  qrcode: string | null;
 }
 
-const QRCodeModal: React.FC<QRCodeModalProps> = ({ isOpen, onClose, qrcode, status }) => {
+const QRCodeModal: React.FC<QRCodeModalProps> = ({ isOpen, onClose, qrcode }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-semibold">Conectar WhatsApp</h3>
+    <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 transition-opacity duration-300">
+      <div className="bg-white rounded-lg p-8 max-w-sm w-full mx-4 shadow-2xl transform transition-all duration-300 scale-100">
+        <div className="flex justify-between items-center mb-6">
+          <h3 className="text-xl font-bold text-gray-800">Conectar ao WhatsApp</h3>
           <button 
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600"
+            className="text-gray-400 hover:text-gray-700 transition-colors"
           >
-            ✕
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
           </button>
         </div>
         
         <div className="text-center">
-          <div className="mb-4">
-            <Image 
-              src={`data:image/png;base64,${qrcode}`} 
-              alt="QR Code WhatsApp"
-              className="mx-auto max-w-full h-64 w-64 object-contain border rounded"
-              width={256}
-              height={256}
-              priority
-            />
-          </div>
+          {qrcode ? (
+            <div className="mb-6 p-4 border rounded-lg bg-gray-50">
+              {/* CORREÇÃO DEFINITIVA: A 'src' agora usa o valor 'qrcode' diretamente, pois ele já contém o prefixo 'data:image/png;base64,'. */}
+              <Image 
+                src={qrcode} 
+                alt="QR Code WhatsApp"
+                width={256}
+                height={256}
+                className="mx-auto object-contain"
+                priority
+              />
+            </div>
+          ) : (
+             <div className="mb-6 h-64 flex items-center justify-center">
+                <p>A gerar QR Code...</p>
+             </div>
+          )}
           
-          <div className="space-y-2 text-sm text-gray-600">
-            <p className="font-medium">Instruções para conectar:</p>
-            <ol className="text-left space-y-1">
-              <li>1. Abra o WhatsApp Business no seu celular</li>
-              <li>2. Toque em &quot;Mais opções&quot; (⋮) → &quot;Aparelhos conectados&quot;</li>
-              <li>3. Toque em &quot;Conectar um aparelho&quot;</li>
-              <li>4. Escaneie este QR Code</li>
+          <div className="space-y-3 text-sm text-gray-600">
+            <p className="font-semibold text-gray-700">Instruções para conectar:</p>
+            <ol className="text-left list-decimal list-inside space-y-2 bg-gray-50 p-4 rounded-lg">
+              <li>Abra o WhatsApp no seu celular.</li>
+              <li>Vá para <span className="font-semibold">Configurações &gt; Aparelhos conectados</span>.</li>
+              <li>Toque em <span className="font-semibold">"Conectar um aparelho"</span>.</li>
+              <li>Aponte a câmera do seu celular para este QR Code.</li>
             </ol>
-          </div>
-
-          <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-            <p className="text-sm text-yellow-700">
-              <strong>Status:</strong> {status === 'pending' ? 'Aguardando pareamento...' : 'Conectando...'}
-            </p>
-            <p className="text-xs text-yellow-600 mt-1">
-              Esta tela será atualizada automaticamente quando a conexão for estabelecida.
-            </p>
           </div>
         </div>
       </div>
@@ -74,52 +70,34 @@ const QRCodeModal: React.FC<QRCodeModalProps> = ({ isOpen, onClose, qrcode, stat
 
 const WhatsappConnectionCard: React.FC = () => {
   const [showQRModal, setShowQRModal] = useState(false);
-  const [qrCode, setQrCode] = useState<string>('');
+  const [qrCode, setQrCode] = useState<string | null>(null);
   const { session } = useAuth();
   const queryClient = useQueryClient();
 
-  // Query para verificar status da conexão
-  const { data: connectionStatus, isLoading, error } = useQuery<ConnectionStatus>({
+  const { data: connectionStatus, isLoading } = useQuery<ConnectionStatus>({
     queryKey: ['whatsapp-connection-status'],
     queryFn: async () => {
-      if (!session?.access_token) throw new Error('No session');
-      
       const response = await fetch('/edge/v1/evolution-manager/connection-status', {
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-        },
+        headers: { 'Authorization': `Bearer ${session!.access_token}` },
       });
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch connection status');
-      }
-      
+      if (!response.ok) throw new Error('Failed to fetch status');
       return response.json();
     },
-    enabled: !!session?.access_token,
-    refetchInterval: 5000, // Polling a cada 5 segundos
-    refetchOnWindowFocus: true,
+    enabled: !!session,
+    refetchInterval: 5000,
   });
 
-  // Mutation para conectar
   const connectMutation = useMutation({
     mutationFn: async () => {
-      if (!session?.access_token) throw new Error('No session');
-      
       const response = await fetch('/edge/v1/evolution-manager/connect', {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Authorization': `Bearer ${session!.access_token}` },
       });
-      
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to connect');
+        throw new Error(errorData.error || 'Failed to initiate connection');
       }
-      
-      return response.json();
+      return response.json() as Promise<ConnectionStatus>;
     },
     onSuccess: (data) => {
       if (data.qrcode) {
@@ -130,7 +108,7 @@ const WhatsappConnectionCard: React.FC = () => {
     },
     onError: (error) => {
       console.error('Connect error:', error);
-      alert(`Erro ao conectar: ${error.message}`);
+      // Aqui você pode adicionar um toast ou notificação de erro mais amigável
     },
   });
 
@@ -155,7 +133,7 @@ const WhatsappConnectionCard: React.FC = () => {
     },
     onSuccess: () => {
       setShowQRModal(false);
-      setQrCode('');
+      setQrCode(null);
       queryClient.invalidateQueries({ queryKey: ['whatsapp-connection-status'] });
     },
     onError: (error) => {
@@ -168,7 +146,7 @@ const WhatsappConnectionCard: React.FC = () => {
   useEffect(() => {
     if (connectionStatus?.status === 'open') {
       setShowQRModal(false);
-      setQrCode('');
+      setQrCode(null);
     }
   }, [connectionStatus?.status]);
 
@@ -229,14 +207,14 @@ const WhatsappConnectionCard: React.FC = () => {
     );
   }
 
-  if (error) {
+  if (connectionStatus?.success === false) {
     return (
       <div className="bg-white shadow-md rounded-lg p-6 border-l-4 border-red-500">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-xl font-semibold text-red-600">WhatsApp Business</h2>
             <p className="text-sm text-red-500">
-              Erro ao verificar status: {error.message}
+              Erro ao verificar status: {connectionStatus.error || 'Desconhecido'}
             </p>
           </div>
           <button 
@@ -338,7 +316,6 @@ const WhatsappConnectionCard: React.FC = () => {
         isOpen={showQRModal}
         onClose={() => setShowQRModal(false)}
         qrcode={qrCode}
-        status={connectionStatus?.status || 'pending'}
       />
     </>
   );
