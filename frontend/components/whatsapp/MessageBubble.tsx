@@ -1,4 +1,5 @@
 import React from 'react';
+import Image from 'next/image';
 import { WhatsAppMessage } from './types';
 
 interface MessageBubbleProps {
@@ -97,10 +98,13 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
           {message.media_url && (
             <div className="mt-2">
               {message.message_type === 'image' && (
-                <img 
+                <Image 
                   src={message.media_url} 
                   alt="Mídia compartilhada"
                   className="max-w-full h-auto rounded-md"
+                  width={300}
+                  height={200}
+                  style={{ objectFit: 'contain' }}
                 />
               )}
               {message.message_type === 'audio' && (

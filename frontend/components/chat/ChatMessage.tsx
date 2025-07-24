@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Image from 'next/image';
 import ReactMarkdown from 'react-markdown'; // Para renderizar Markdown do agente
 import remarkGfm from 'remark-gfm'; // Importar remark-gfm
 import { 
@@ -97,7 +98,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
 
   const avatarContent = message.avatar ? (
     typeof message.avatar === 'string' ? (
-      <img src={message.avatar} alt={message.userName || 'avatar'} className="w-full h-full object-cover rounded-full" />
+      <Image src={message.avatar} alt={message.userName || 'avatar'} className="w-full h-full object-cover rounded-full" width={40} height={40} />
     ) : (
       message.avatar // Renderiza o ReactNode diretamente
     )

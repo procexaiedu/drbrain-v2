@@ -1,13 +1,14 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabaseClient';
 
 interface ConnectionStatus {
   success: boolean;
-  status: 'connected' | 'pending' | 'disconnected' | 'not_configured';
+  status: 'connected' | 'pending' | 'disconnected' | 'not_configured' | 'open';
   instanceName?: string;
   qrcode?: string;
 }
@@ -37,10 +38,13 @@ const QRCodeModal: React.FC<QRCodeModalProps> = ({ isOpen, onClose, qrcode, stat
         
         <div className="text-center">
           <div className="mb-4">
-            <img 
+            <Image 
               src={`data:image/png;base64,${qrcode}`} 
               alt="QR Code WhatsApp"
               className="mx-auto max-w-full h-64 w-64 object-contain border rounded"
+              width={256}
+              height={256}
+              priority
             />
           </div>
           
@@ -48,8 +52,8 @@ const QRCodeModal: React.FC<QRCodeModalProps> = ({ isOpen, onClose, qrcode, stat
             <p className="font-medium">Instruções para conectar:</p>
             <ol className="text-left space-y-1">
               <li>1. Abra o WhatsApp Business no seu celular</li>
-              <li>2. Toque em "Mais opções" (⋮) → "Aparelhos conectados"</li>
-              <li>3. Toque em "Conectar um aparelho"</li>
+              <li>2. Toque em &quot;Mais opções&quot; (⋮) → &quot;Aparelhos conectados&quot;</li>
+              <li>3. Toque em &quot;Conectar um aparelho&quot;</li>
               <li>4. Escaneie este QR Code</li>
             </ol>
           </div>

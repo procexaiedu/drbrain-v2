@@ -59,7 +59,7 @@ const WhatsAppPage: React.FC = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [selectedConversation?.id, queryClient, user?.id]);
+  }, [selectedConversation, queryClient, user?.id]);
 
   const handleSelectConversation = (conversation: WhatsAppConversation) => {
     setSelectedConversation(conversation);

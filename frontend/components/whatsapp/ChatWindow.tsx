@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import { WhatsAppConversation, MessagesResponse } from './types';
@@ -34,7 +34,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ conversation }) => {
     refetchInterval: 5000, // Refresh every 5 seconds
   });
 
-  const messages = messagesData?.messages || [];
+  const messages = useMemo(() => messagesData?.messages || [], [messagesData?.messages]);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
