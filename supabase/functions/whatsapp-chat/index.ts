@@ -1,41 +1,19 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
 
-// 🔐 SEGURANÇA: API Key agora vem de secret do Supabase
+// As secrets são lidas do ambiente do Supabase
 const EVOLUTION_API_URL = 'https://evolution2.procexai.tech'
 const EVOLUTION_API_KEY = Deno.env.get('EVOLUTION_API_KEY')
 
-// Verificar se a API key está configurada
-if (!EVOLUTION_API_KEY) {
-  console.error('🚨 CRITICAL: EVOLUTION_API_KEY not configured in Supabase secrets')
-  throw new Error('Evolution API key not configured. Please set EVOLUTION_API_KEY in Project Settings > Secrets')
-}
-
-interface WhatsAppConversation {
-  id: string;
-  medico_id: string;
-  contact_jid: string;
-  contact_name: string;
-  last_message_at: string;
-  unread_messages: number;
-  created_at: string;
-  updated_at: string;
-  last_message_content?: string;
-  last_message_sent_by?: string;
-}
-
-interface WhatsAppMessage {
-  id: string;
-  conversation_id: string;
-  medico_id: string;
-  message_content: string;
-  message_type: string;
-  sent_by: string;
-  sent_at: string;
-  media_url?: string;
-  evolution_message_id?: string;
-  created_at: string;
+// Função auxiliar para criar o cliente Supabase de serviço para operações de admin
+const createAdminClient = () => {
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')
+  const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+  if (!supabaseUrl || !supabaseServiceKey) {
+    throw new Error('Supabase service role configuration is missing.')
+  }
+  return createClient(supabaseUrl, supabaseServiceKey)
 }
 
 interface SendMessageRequest {
@@ -44,54 +22,29 @@ interface SendMessageRequest {
   conversationId?: string;
 }
 
-interface EvolutionSendResponse {
-  key: {
-    remoteJid: string;
-    fromMe: boolean;
-    id: string;
-  };
-  message: any;
-  messageTimestamp: number;
-  status: string;
-}
-
 serve(async (req) => {
-  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-    // Initialize Supabase client
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    
-    if (!supabaseUrl || !supabaseServiceKey) {
-      throw new Error('Supabase configuration missing')
-    }
-
-    const supabase = createClient(supabaseUrl, supabaseServiceKey)
-
-    // Get user from JWT token
-    const authHeader = req.headers.get('Authorization')
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'Authorization header missing' }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 401,
-      })
-    }
-
-    const jwt = authHeader.replace('Bearer ', '')
-    const { data: { user }, error: userError } = await supabase.auth.getUser(jwt)
-
+    // Cliente Supabase com autenticação do usuário para obter o medico_id e fazer queries RLS
+    const userSupabase = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      { global: { headers: { Authorization: req.headers.get('Authorization')! } } }
+    )
+    const { data: { user }, error: userError } = await userSupabase.auth.getUser()
     if (userError || !user) {
-      return new Response(JSON.stringify({ error: 'Invalid token', details: userError?.message }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 401,
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401
       })
     }
-
     const medico_id = user.id
+
+    // Cliente Supabase com role de serviço para operações que precisam de privilégios elevados
+    const supabaseAdmin = createAdminClient()
+
     const url = new URL(req.url)
     const path = url.pathname.split('/').pop() || ''
 
@@ -99,312 +52,115 @@ serve(async (req) => {
 
     switch (path) {
       case 'conversations': {
-        if (req.method !== 'GET') {
-          return new Response(JSON.stringify({ error: 'Method not allowed' }), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            status: 405,
-          })
-        }
+        // Para buscar conversas, usamos o cliente do usuário, pois a função RPC e a RLS cuidarão da segurança.
+        const { data: conversations, error } = await userSupabase
+          .rpc('get_conversations_with_last_message', { p_medico_id: medico_id })
 
-        try {
-          console.log(`📋 Fetching conversations for medico: ${medico_id}`)
+        if (error) throw error
 
-          // Use the optimized function to get conversations with last message
-          const { data: conversations, error: conversationsError } = await supabase
-            .rpc('get_conversations_with_last_message', { p_medico_id: medico_id })
-
-          if (conversationsError) {
-            console.error('❌ Failed to fetch conversations:', conversationsError)
-            throw new Error(`Database error: ${conversationsError.message}`)
-          }
-
-          console.log(`✅ Found ${conversations?.length || 0} conversations`)
-
-          return new Response(JSON.stringify({
-            success: true,
-            conversations: conversations || [],
-          }), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            status: 200,
-          })
-
-        } catch (error) {
-          console.error('💥 Failed to fetch conversations:', error)
-          return new Response(JSON.stringify({ 
-            error: 'Failed to fetch conversations',
-            details: error.message 
-          }), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            status: 500,
-          })
-        }
+        return new Response(JSON.stringify({ success: true, conversations: conversations || [] }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
       }
 
       case 'messages': {
-        if (req.method !== 'GET') {
-          return new Response(JSON.stringify({ error: 'Method not allowed' }), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            status: 405,
+        const conversationId = url.searchParams.get('conversation_id')
+        if (!conversationId) {
+          return new Response(JSON.stringify({ error: 'conversation_id is required' }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400
           })
         }
 
-        try {
-          const conversationId = url.searchParams.get('conversation_id')
-          
-          if (!conversationId) {
-            return new Response(JSON.stringify({ error: 'conversation_id parameter required' }), {
-              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-              status: 400,
-            })
-          }
+        // Para buscar mensagens, também usamos o cliente do usuário. A RLS na tabela `whatsapp_messages` garante a segurança.
+        const { data: messages, error } = await userSupabase
+          .from('whatsapp_messages')
+          .select('*')
+          .eq('conversation_id', conversationId)
+          .order('sent_at', { ascending: true })
 
-          console.log(`📨 Fetching messages for conversation: ${conversationId}`)
+        if (error) throw error
 
-          // Fetch messages for the conversation (RLS automatically filters by medico_id)
-          const { data: messages, error: messagesError } = await supabase
-            .from('whatsapp_messages')
-            .select('*')
-            .eq('conversation_id', conversationId)
-            .eq('medico_id', medico_id) // Extra security check
-            .order('sent_at', { ascending: true })
-
-          if (messagesError) {
-            console.error('❌ Failed to fetch messages:', messagesError)
-            throw new Error(`Database error: ${messagesError.message}`)
-          }
-
-          console.log(`✅ Found ${messages?.length || 0} messages`)
-
-          return new Response(JSON.stringify({
-            success: true,
-            messages: messages || [],
-          }), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            status: 200,
-          })
-
-        } catch (error) {
-          console.error('💥 Failed to fetch messages:', error)
-          return new Response(JSON.stringify({ 
-            error: 'Failed to fetch messages',
-            details: error.message 
-          }), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            status: 500,
-          })
-        }
+        return new Response(JSON.stringify({ success: true, messages: messages || [] }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
       }
 
       case 'send': {
-        if (req.method !== 'POST') {
-          return new Response(JSON.stringify({ error: 'Method not allowed' }), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            status: 405,
+        const { number, message, conversationId }: SendMessageRequest = await req.json()
+        if (!number || !message) {
+          return new Response(JSON.stringify({ error: 'number and message are required' }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400
           })
         }
 
-        try {
-          const requestBody: SendMessageRequest = await req.json()
-          const { number, message, conversationId } = requestBody
+        // Para buscar o token de conexão, usamos o cliente admin, pois o médico não deve ter acesso direto a essa tabela.
+        const { data: tokenData, error: tokenError } = await supabaseAdmin
+          .from('medico_oauth_tokens')
+          .select('instance_id, connection_status')
+          .eq('medico_id', medico_id)
+          .eq('provider', 'evolution_api')
+          .single()
 
-          if (!number || !message) {
-            return new Response(JSON.stringify({ error: 'number and message are required' }), {
-              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-              status: 400,
-            })
-          }
-
-          console.log(`📤 Sending message to ${number}: ${message.substring(0, 50)}...`)
-
-          // Get instance name for this medico
-          const { data: tokenData, error: tokenError } = await supabase
-            .from('medico_oauth_tokens')
-            .select('instance_id, connection_status')
-            .eq('medico_id', medico_id)
-            .eq('provider', 'evolution_api')
-            .single()
-
-          if (tokenError || !tokenData) {
-            return new Response(JSON.stringify({ error: 'WhatsApp not connected' }), {
-              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-              status: 400,
-            })
-          }
-
-          if (tokenData.connection_status !== 'open') {
-            return new Response(JSON.stringify({ error: 'WhatsApp not connected', status: tokenData.connection_status }), {
-              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-              status: 400,
-            })
-          }
-
-          const instanceName = tokenData.instance_id
-          const remoteJid = `${number}@s.whatsapp.net`
-
-          // Send message via EvolutionAPI
-          const evolutionResponse = await fetch(`${EVOLUTION_API_URL}/message/sendText/${instanceName}`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'apikey': EVOLUTION_API_KEY,
-            },
-            body: JSON.stringify({
-              number: number,
-              text: message,
-            }),
-          })
-
-          if (!evolutionResponse.ok) {
-            const errorText = await evolutionResponse.text()
-            console.error('❌ EvolutionAPI send failed:', evolutionResponse.status, errorText)
-            throw new Error(`Failed to send message via WhatsApp: ${evolutionResponse.status}`)
-          }
-
-          const evolutionData: EvolutionSendResponse = await evolutionResponse.json()
-          console.log('✅ Message sent via EvolutionAPI:', evolutionData.key.id)
-
-          // Find or create conversation
-          let conversationRecord = null
-          
-          if (conversationId) {
-            // Try to get existing conversation
-            const { data: existingConv } = await supabase
-              .from('whatsapp_conversations')
-              .select('*')
-              .eq('id', conversationId)
-              .eq('medico_id', medico_id)
-              .single()
-            
-            conversationRecord = existingConv
-          }
-
-          if (!conversationRecord) {
-            // Create or update conversation
-            const { data: upsertedConv, error: convError } = await supabase
-              .from('whatsapp_conversations')
-              .upsert({
-                medico_id,
-                contact_jid: remoteJid,
-                contact_name: number, // We only have the number for now
-                last_message_at: new Date().toISOString(),
-                unread_messages: 0, // Doctor sent message, so no unread
-                updated_at: new Date().toISOString(),
-              }, {
-                onConflict: 'medico_id,contact_jid',
-                ignoreDuplicates: false
-              })
-              .select()
-              .single()
-
-            if (convError) {
-              console.error('❌ Failed to upsert conversation:', convError)
-              throw new Error(`Failed to create conversation: ${convError.message}`)
-            }
-
-            conversationRecord = upsertedConv
-          }
-
-                     // Ensure we have a conversation record
-           if (!conversationRecord) {
-             throw new Error('Failed to create or find conversation')
-           }
-
-           // Save message to database
-           const { data: savedMessage, error: messageError } = await supabase
-             .from('whatsapp_messages')
-             .insert({
-               conversation_id: conversationRecord.id,
-               medico_id,
-               message_content: message,
-               message_type: 'text',
-               sent_by: 'medico',
-               sent_at: new Date(evolutionData.messageTimestamp * 1000).toISOString(),
-               evolution_message_id: evolutionData.key.id,
-             })
-             .select()
-             .single()
-
-          if (messageError) {
-            console.error('❌ Failed to save message:', messageError)
-            // Don't fail the request, message was sent successfully
-            console.warn('⚠️ Message sent but not saved to database')
-          }
-
-          console.log('💾 Message saved to database')
-
-          return new Response(JSON.stringify({
-            success: true,
-            message: savedMessage,
-            evolutionResponse: evolutionData,
-          }), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            status: 200,
-          })
-
-        } catch (error) {
-          console.error('💥 Failed to send message:', error)
-          return new Response(JSON.stringify({ 
-            error: 'Failed to send message',
-            details: error.message 
-          }), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            status: 500,
-          })
-        }
-      }
-
-      case 'webhook': {
-        if (req.method !== 'POST') {
-          return new Response(JSON.stringify({ error: 'Method not allowed' }), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            status: 405,
-          })
+        if (tokenError || !tokenData || tokenData.connection_status !== 'open') {
+          throw new Error('WhatsApp not connected or connection info not found.')
         }
 
-        try {
-          // This endpoint can be used by n8n or other services to push updates
-          const webhookData = await req.json()
-          console.log('🔗 Webhook received:', JSON.stringify(webhookData, null, 2))
+        const instanceName = tokenData.instance_id
 
-          // Process webhook data here if needed
-          // For now, just acknowledge receipt
-          
-          return new Response(JSON.stringify({
-            success: true,
-            message: 'Webhook received',
-            timestamp: new Date().toISOString(),
-          }), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            status: 200,
-          })
+        // Envia a mensagem pela Evolution API
+        const evolutionResponse = await fetch(`${EVOLUTION_API_URL}/message/sendText/${instanceName}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'apikey': EVOLUTION_API_KEY! },
+          body: JSON.stringify({ number, textMessage: { text: message } })
+        })
 
-        } catch (error) {
-          console.error('💥 Webhook processing failed:', error)
-          return new Response(JSON.stringify({ 
-            error: 'Webhook processing failed',
-            details: error.message 
-          }), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            status: 500,
-          })
+        if (!evolutionResponse.ok) {
+          const errorText = await evolutionResponse.text()
+          throw new Error(`Failed to send message via Evolution API: ${errorText}`)
         }
+        const evolutionData = await evolutionResponse.json()
+
+        // Garante que a conversa exista e obtém o ID
+        const { data: conversation } = await supabaseAdmin.rpc('find_or_create_conversation', {
+          p_medico_id: medico_id,
+          p_contact_jid: `${number}@s.whatsapp.net`,
+          p_contact_name: number // O nome será atualizado pelo n8n quando o contato responder
+        });
+        
+        if (!conversation) {
+            throw new Error('Could not find or create a conversation record.');
+        }
+
+        // Salva a mensagem enviada pelo médico no banco de dados
+        const { data: savedMessage, error: messageError } = await supabaseAdmin
+          .from('whatsapp_messages')
+          .insert({
+            conversation_id: conversation.id,
+            medico_id,
+            message_content: message,
+            sent_by: 'medico',
+            sent_at: new Date(evolutionData.messageTimestamp * 1000).toISOString(),
+            evolution_message_id: evolutionData.key.id,
+          })
+          .select()
+          .single()
+
+        if (messageError) throw messageError
+
+        return new Response(JSON.stringify({ success: true, message: savedMessage }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
       }
 
       default:
-        return new Response(JSON.stringify({ error: 'Endpoint not found' }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 404,
+        return new Response(JSON.stringify({ error: 'Not Found' }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 404
         })
     }
-
   } catch (error) {
-    console.error('💥 Unexpected error in whatsapp-chat:', error)
-    return new Response(JSON.stringify({ 
-      error: 'Internal server error',
-      details: error.message 
-    }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 500,
+    console.error("WhatsApp Chat Error:", error)
+    return new Response(JSON.stringify({ error: error.message }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500
     })
   }
-}) 
+})
