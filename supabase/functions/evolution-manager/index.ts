@@ -86,29 +86,103 @@ serve(async (req) => {
         const instanceName = `drbrain_${medico_id.replace(/-/g, '_')}`
 
         try {
-          // 1. Create instance in EvolutionAPI
-          console.log(`📱 Creating instance: ${instanceName}`)
-          const createResponse = await fetch(`${EVOLUTION_API_URL}/instance/create`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'apikey': EVOLUTION_API_KEY,
-            },
-            body: JSON.stringify({
-              instanceName,
-              qrcode: true,
-              integration: 'WHATSAPP-BAILEYS'
-            }),
-          })
+          // 1. Check if instance already exists in our database with a non-disconnected status
+          const { data: existingToken, error: selectError } = await supabase
+            .from('medico_oauth_tokens')
+            .select('instance_id, connection_status')
+            .eq('medico_id', medico_id)
+            .eq('provider', 'evolution_api')
+            .neq('connection_status', 'disconnected') // Check for any active/pending status
+            .single()
 
-          if (!createResponse.ok) {
-            const errorText = await createResponse.text()
-            console.error('❌ EvolutionAPI create failed:', createResponse.status, errorText)
-            throw new Error(`Failed to create instance: ${createResponse.status}`)
+          if (existingToken) {
+            if (existingToken.connection_status === 'open' || existingToken.connection_status === 'pending') {
+              console.warn(`⚠️ Instance ${existingToken.instance_id} already exists and is ${existingToken.connection_status}. Aborting new connection attempt.`)
+              return new Response(JSON.stringify({
+                success: false,
+                error: 'Connection already exists',
+                details: `Uma conexão WhatsApp já está ${existingToken.connection_status}. Desconecte antes de tentar conectar novamente.`,
+                status: existingToken.connection_status,
+              }), {
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+                status: 409, // Conflict
+              })
+            }
           }
 
-          const createData: EvolutionInstanceResponse = await createResponse.json()
-          console.log('✅ Instance created:', createData.instanceName)
+          let createData: EvolutionInstanceResponse;
+
+          try {
+            // Attempt to create instance in EvolutionAPI
+            console.log(`📱 Attempting to create instance: ${instanceName}`)
+            const createResponse = await fetch(`${EVOLUTION_API_URL}/instance/create`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'apikey': EVOLUTION_API_KEY,
+              },
+              body: JSON.stringify({
+                instanceName,
+                qrcode: true,
+                integration: 'WHATSAPP-BAILEYS'
+              }),
+            })
+
+            if (!createResponse.ok) {
+              const errorBody = await createResponse.json()
+              console.error('❌ EvolutionAPI create failed:', createResponse.status, errorBody)
+
+              // Handle "name already in use" specifically
+              if (createResponse.status === 403 && errorBody.response?.message?.includes('This name \'' + instanceName + '\' is already in use.')) {
+                console.warn(`⚠️ Instance name ${instanceName} already in use on EvolutionAPI. Attempting to delete old instance...`)
+                const deleteResponse = await fetch(`${EVOLUTION_API_URL}/instance/delete/${instanceName}`, {
+                  method: 'DELETE',
+                  headers: {
+                    'apikey': EVOLUTION_API_KEY,
+                  },
+                })
+
+                if (!deleteResponse.ok) {
+                  const deleteErrorText = await deleteResponse.text()
+                  console.error('❌ Failed to delete old instance:', deleteResponse.status, deleteErrorText)
+                  throw new Error(`Failed to create instance: Name in use and failed to delete old instance (Status: ${deleteResponse.status})`)
+                }
+                console.log(`✅ Old instance ${instanceName} deleted successfully. Retrying create...`)
+                // Retry create after deletion
+                const retryCreateResponse = await fetch(`${EVOLUTION_API_URL}/instance/create`, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'apikey': EVOLUTION_API_KEY,
+                  },
+                  body: JSON.stringify({
+                    instanceName,
+                    qrcode: true,
+                    integration: 'WHATSAPP-BAILEYS'
+                  }),
+                })
+
+                if (!retryCreateResponse.ok) {
+                  const retryErrorText = await retryCreateResponse.text()
+                  console.error('❌ EvolutionAPI retry create failed:', retryCreateResponse.status, retryErrorText)
+                  throw new Error(`Failed to create instance after deleting old one (Status: ${retryCreateResponse.status})`)
+                }
+                createData = await retryCreateResponse.json()
+                console.log('✅ Instance re-created successfully:', createData.instanceName)
+
+              } else {
+                // Other create errors
+                throw new Error(`Failed to create instance: ${createResponse.status} - ${JSON.stringify(errorBody)}`)
+              }
+            } else {
+              createData = await createResponse.json()
+              console.log('✅ Instance created:', createData.instanceName)
+            }
+          } catch (createOrDeleteError) {
+            console.error('💥 Error during instance creation or deletion attempt:', createOrDeleteError)
+            throw new Error(`Falha ao criar/gerenciar instância WhatsApp: ${createOrDeleteError.message}`)
+          }
+
 
           // 2. Connect instance to get QR code
           console.log(`🔗 Connecting instance: ${instanceName}`)
@@ -122,7 +196,7 @@ serve(async (req) => {
           if (!connectResponse.ok) {
             const errorText = await connectResponse.text()
             console.error('❌ EvolutionAPI connect failed:', connectResponse.status, errorText)
-            throw new Error(`Failed to connect instance: ${connectResponse.status}`)
+            throw new Error(`Failed to connect instance: ${connectResponse.status} - ${errorText}`)
           }
 
           const connectData: EvolutionConnectionResponse = await connectResponse.json()
@@ -137,7 +211,7 @@ serve(async (req) => {
               instance_id: instanceName,
               api_key: createData.apikey,
               connection_status: connectData.state,
-              created_at: new Date().toISOString(),
+              created_at: new Date().toISOString(), // Only set on first insert
               updated_at: new Date().toISOString(),
             }, {
               onConflict: 'medico_id,provider'
@@ -181,7 +255,7 @@ serve(async (req) => {
         }
 
         try {
-          // Get instance info from database
+          // Get instance info from database (prioritize local DB)
           const { data: tokenData, error: selectError } = await supabase
             .from('medico_oauth_tokens')
             .select('instance_id, connection_status')
@@ -189,11 +263,12 @@ serve(async (req) => {
             .eq('provider', 'evolution_api')
             .single()
 
-          if (selectError || !tokenData) {
-            console.log('📭 No instance found for medico:', medico_id)
+          if (selectError || !tokenData || tokenData.connection_status === 'disconnected') {
+            console.log('📭 No active/configured instance found for medico or it\'s disconnected. Returning default status.', medico_id)
             return new Response(JSON.stringify({
               success: true,
-              status: 'not_configured',
+              status: tokenData?.connection_status || 'not_configured',
+              instanceName: tokenData?.instance_id || null
             }), {
               headers: { ...corsHeaders, 'Content-Type': 'application/json' },
               status: 200,
@@ -202,7 +277,7 @@ serve(async (req) => {
 
           const instanceName = tokenData.instance_id
 
-          // Check current status with EvolutionAPI
+          // Check current status with EvolutionAPI (only if instance is known and not disconnected)
           console.log(`🔍 Checking status for instance: ${instanceName}`)
           const statusResponse = await fetch(`${EVOLUTION_API_URL}/instance/connectionState/${instanceName}`, {
             method: 'GET',
@@ -213,6 +288,20 @@ serve(async (req) => {
 
           if (!statusResponse.ok) {
             console.error('❌ EvolutionAPI status check failed:', statusResponse.status)
+            // If EvolutionAPI fails, assume disconnected and update DB
+            const { error: updateError } = await supabase
+            .from('medico_oauth_tokens')
+            .update({
+              connection_status: 'disconnected',
+              updated_at: new Date().toISOString(),
+            })
+            .eq('medico_id', medico_id)
+            .eq('provider', 'evolution_api')
+
+            if (updateError) {
+              console.error('❌ Failed to update status to disconnected in database after API failure:', updateError)
+            }
+            
             return new Response(JSON.stringify({
               success: true,
               status: 'disconnected',
