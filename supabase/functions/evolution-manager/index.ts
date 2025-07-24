@@ -12,24 +12,25 @@ if (!EVOLUTION_API_KEY) {
   throw new Error('Evolution API key not configured. Please set EVOLUTION_API_KEY in Project Settings > Secrets')
 }
 
+// Definindo as interfaces de resposta da EvolutionAPI de acordo com a documentação e prática
 interface EvolutionInstanceResponse {
   instanceName: string;
-  instanceId: string;
-  status: string;
-  serverUrl: string;
-  apikey: string;
+  instanceId: string; // Exemplo: "instance@evolution"
+  status: string; // Exemplo: "created"
+  serverUrl?: string; // Opcional, pode não ser retornado
+  // `apikey` não é retornado aqui, usamos a global EVOLUTION_API_KEY
 }
 
 interface EvolutionConnectionResponse {
-  instanceName: string;
-  state: string;
-  qrcode?: string;
+  state: string; // Exemplo: "connecting", "open", "disconnected"
+  // `qrcode` não é retornado aqui, vem via webhook
 }
 
+// EvolutionStatusResponse também deve esperar um 'state' string, o qrcode virá do DB
+// Já está assim na interface EvolutionConnectionResponse, então podemos reusar ou simplificar.
+// Para clareza, manterei `EvolutionStatusResponse` mas alinhado com a resposta do `connectionState` que é uma string simples.
 interface EvolutionStatusResponse {
-  instanceName: string;
-  state: string;
-  qrcode?: string;
+    state: string;
 }
 
 serve(async (req) => {
@@ -84,10 +85,14 @@ serve(async (req) => {
         }
 
         const instanceName = `drbrain_${medico_id.replace(/-/g, '_')}`
+        // TODO: Substituir pela URL REAL do seu workflow de webhook de mensagens no n8n
+        const n8nWebhookUrl = `https://your-n8n-instance.com/webhook/evolution-inbound-message`; 
+        // TODO: Substituir pela URL REAL do seu workflow de webhook de status de conexão no n8n
+        const n8nConnectionStatusWebhookUrl = `https://your-n8n-instance.com/webhook/evolution-connection-status`; 
 
         try {
           // 1. Check if instance already exists in our database with a non-disconnected status
-          const { data: existingToken, error: selectError } = await supabase
+          const { data: existingToken } = await supabase
             .from('medico_oauth_tokens')
             .select('instance_id, connection_status')
             .eq('medico_id', medico_id)
@@ -111,6 +116,8 @@ serve(async (req) => {
           }
 
           let createData: EvolutionInstanceResponse;
+          let currentConnectState: string; // Para capturar o estado inicial de conexão
+
 
           try {
             // Attempt to create instance in EvolutionAPI
@@ -119,7 +126,7 @@ serve(async (req) => {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
-                'apikey': EVOLUTION_API_KEY,
+                'apikey': EVOLUTION_API_KEY, // Usa a API key global para esta operação
               },
               body: JSON.stringify({
                 instanceName,
@@ -167,7 +174,7 @@ serve(async (req) => {
                   console.error('❌ EvolutionAPI retry create failed:', retryCreateResponse.status, retryErrorText)
                   throw new Error(`Failed to create instance after deleting old one (Status: ${retryCreateResponse.status})`)
                 }
-                createData = await retryCreateResponse.json()
+                createData = await retryCreateResponse.json() // Obter os dados da instância criada no retry
                 console.log('✅ Instance re-created successfully:', createData.instanceName)
 
               } else {
@@ -175,7 +182,7 @@ serve(async (req) => {
                 throw new Error(`Failed to create instance: ${createResponse.status} - ${JSON.stringify(errorBody)}`)
               }
             } else {
-              createData = await createResponse.json()
+              createData = await createResponse.json() // Obter os dados da instância criada na primeira tentativa
               console.log('✅ Instance created:', createData.instanceName)
             }
           } catch (createOrDeleteError) {
@@ -184,7 +191,7 @@ serve(async (req) => {
           }
 
 
-          // 2. Connect instance to get QR code
+          // 2. Connect instance to get initial state
           console.log(`🔗 Connecting instance: ${instanceName}`)
           const connectResponse = await fetch(`${EVOLUTION_API_URL}/instance/connect/${instanceName}`, {
             method: 'GET',
@@ -199,18 +206,55 @@ serve(async (req) => {
             throw new Error(`Failed to connect instance: ${connectResponse.status} - ${errorText}`)
           }
 
-          const connectData: EvolutionConnectionResponse = await connectResponse.json()
-          console.log('📲 Connection initiated, status:', connectData.state)
+          // A EvolutionAPI retorna apenas uma string para connectionState, não um objeto
+          currentConnectState = await connectResponse.text(); // Captura o estado como texto
+          console.log('📲 Connection initiated, status:', currentConnectState)
 
-          // 3. Store/update instance info in database
+
+          // 3. Register webhooks for the instance (CRUCIAL FOR QR CODE & MESSAGES)
+          console.log(`🕸️ Registering webhooks for instance: ${instanceName}`)
+          const webhookPayload = {
+            url: n8nWebhookUrl, // Webhook para o n8n para mensagens
+            webhook_by_events: true, // Se o n8n espera URL por evento
+            webhook_base64: false, // Não encode base64
+            events: [
+              "QRCODE_UPDATED",
+              "MESSAGES_UPSERT",
+              "CONNECTION_UPDATE",
+              "SEND_MESSAGE" // Para rastrear mensagens enviadas pela API
+            ]
+          };
+
+          const registerWebhookResponse = await fetch(`${EVOLUTION_API_URL}/webhook/update/${instanceName}`, {
+            method: 'PUT', // PUT para atualizar/criar webhooks
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': EVOLUTION_API_KEY,
+            },
+            body: JSON.stringify(webhookPayload),
+          });
+
+          if (!registerWebhookResponse.ok) {
+            const webhookErrorText = await registerWebhookResponse.text();
+            console.error('❌ Failed to register webhooks:', registerWebhookResponse.status, webhookErrorText);
+            // Decide se falhar aqui impede a conexão ou apenas loga o erro
+            // Por enquanto, vamos logar e continuar, pois a instância pode estar funcional sem webhooks
+            // Mas o QR code não aparecerá e as mensagens não chegarão na UI.
+            throw new Error(`Failed to register webhooks: ${registerWebhookResponse.status} - ${webhookErrorText}`);
+          }
+          console.log('✅ Webhooks registered successfully.')
+
+
+          // 4. Store/update instance info in database
           const { error: upsertError } = await supabase
             .from('medico_oauth_tokens')
             .upsert({
               medico_id,
               provider: 'evolution_api',
-              instance_id: instanceName,
-              api_key: createData.apikey,
-              connection_status: connectData.state,
+              instance_id: instanceName, // Usamos o instanceName como ID da instância
+              access_token: EVOLUTION_API_KEY, // Usar a API key global para a coluna `access_token`
+              connection_status: currentConnectState, // Estado inicial
+              qrcode: null, // QR code virá via webhook, então definimos como null inicialmente
               created_at: new Date().toISOString(), // Only set on first insert
               updated_at: new Date().toISOString(),
             }, {
@@ -226,9 +270,10 @@ serve(async (req) => {
 
           return new Response(JSON.stringify({
             success: true,
-            instanceName: connectData.instanceName,
-            status: connectData.state,
-            qrcode: connectData.qrcode,
+            instanceName: createData.instanceName, // Usar o nome da instância da API
+            status: currentConnectState,
+            qrcode: null, // QR code não vem daqui, ele virá via webhook
+            details: 'Conexão iniciada. QR Code será exibido em breve (verifique webhooks n8n).' // Mensagem para o frontend
           }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
             status: 200,

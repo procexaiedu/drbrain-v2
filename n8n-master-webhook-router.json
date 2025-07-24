@@ -1,0 +1,101 @@
+{
+  "name": "[Master] EvolutionAPI Webhook Router",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "webhookRespond": {
+          "mode": "responseNode",
+          "responseMode": "lastNode",
+          "jsonBody": "={\n  \"status\": \"received\"\n}"
+        }
+      },
+      "name": "EvolutionAPI Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "id": "webhook_master",
+      "position": [400, 200]
+    },
+    {
+      "parameters": {
+        "mode": "define",
+        "conditions": [
+          {
+            "value1": "={{$json.event}}",
+            "operator": "in",
+            "value2": "QRCODE_UPDATED,CONNECTION_UPDATE"
+          },
+          {
+            "value1": "={{$json.event}}",
+            "operator": "in",
+            "value2": "MESSAGES_UPSERT"
+          }
+        ]
+      },
+      "name": "Route Webhook Event",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 1,
+      "id": "switch_router",
+      "position": [600, 200]
+    },
+    {
+      "parameters": {
+        "url": "https://webh.procexai.tech/webhook/evolution-status-update",
+        "options": {
+          "jsonParameters": true
+        },
+        "bodyParameters": "={{$json}}"
+      },
+      "name": "Forward Status Webhook",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "id": "http_status_forwarder",
+      "position": [800, 100]
+    },
+    {
+      "parameters": {
+        "url": "https://webh.procexai.tech/webhook/evolution-inbound-message",
+        "options": {
+          "jsonParameters": true
+        },
+        "bodyParameters": "={{$json}}"
+      },
+      "name": "Forward Message Webhook",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "id": "http_message_forwarder",
+      "position": [800, 300]
+    }
+  ],
+  "connections": {
+    "webhook_master": {
+      "main": [
+        [
+          {
+            "node": "switch_router",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "switch_router": {
+      "main": [
+        [
+          {
+            "node": "http_status_forwarder",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "http_message_forwarder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+} 
