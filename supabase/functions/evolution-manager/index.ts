@@ -2,12 +2,10 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
 
-// Secrets are read from the Supabase project's environment
 const EVOLUTION_API_URL = 'https://evolution2.procexai.tech'
 const EVOLUTION_API_KEY = Deno.env.get('EVOLUTION_API_KEY')
-const N8N_WEBHOOK_URL = "https://webh.procexai.tech/webhook/drBrainCentral" // Your master webhook URL
+const N8N_WEBHOOK_URL = "https://webh.procexai.tech/webhook/drBrainCentral"
 
-// Helper function to create the admin client for database operations
 const createAdminClient = () => {
   const supabaseUrl = Deno.env.get('SUPABASE_URL')
   const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
@@ -50,65 +48,61 @@ serve(async (req) => {
       case 'connect': {
         const instanceName = `drbrain_${medico_id.replace(/-/g, '_')}`
 
-        console.log(`[Step 1/4] Ensuring instance '${instanceName}' exists...`);
+        // --- ETAPA 1: Criar a instância com o payload validado pelo Postman ---
+        console.log(`[Step 1/4] Creating instance '${instanceName}' with correct payload...`);
+        const createPayload = {
+          instanceName,
+          qrcode: true,
+          integration: "WHATSAPP-BAILEYS" // Payload validado pelo Postman
+        };
         const createResponse = await fetch(`${EVOLUTION_API_URL}/instance/create`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'apikey': EVOLUTION_API_KEY },
-          // CORREÇÃO DEFINITIVA: Removido o campo 'integration' que causava o erro 400.
-          // A API infere a integração. Este payload é o que funcionava para você.
-          body: JSON.stringify({ instanceName, qrcode: true })
+          body: JSON.stringify(createPayload)
         })
 
-        if (!createResponse.ok && createResponse.status !== 403) {
-          const errorBody = await createResponse.text();
-          throw new Error(`Failed to create instance on Evolution API: ${createResponse.status} ${errorBody}`)
+        if (!createResponse.ok) {
+          // Se a instância já existir, vamos deletá-la e tentar criar novamente para garantir um estado limpo.
+          if (createResponse.status === 403) {
+             console.warn(`Instance '${instanceName}' already exists. Recreating for a clean state...`);
+             await fetch(`${EVOLUTION_API_URL}/instance/delete/${instanceName}`, {
+                method: 'DELETE',
+                headers: { 'apikey': EVOLUTION_API_KEY }
+             });
+             const retryResponse = await fetch(`${EVOLUTION_API_URL}/instance/create`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'apikey': EVOLUTION_API_KEY },
+                body: JSON.stringify(createPayload)
+             });
+             if (!retryResponse.ok) {
+                const errorBody = await retryResponse.text();
+                throw new Error(`Failed to recreate instance: ${retryResponse.status} ${errorBody}`);
+             }
+             const createData = await retryResponse.json();
+             console.log(`[Step 1/4] OK: Instance '${instanceName}' recreated successfully.`);
+             await handleSuccessfulCreation(supabaseAdmin, medico_id, createData);
+             return new Response(JSON.stringify({
+                success: true,
+                status: createData.instance.status,
+                qrcode: createData.qrcode.base64
+             }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+          } else {
+            const errorBody = await createResponse.text();
+            throw new Error(`Failed to create instance on Evolution API: ${createResponse.status} ${errorBody}`);
+          }
         }
-        console.log(`[Step 1/4] OK: Instance '${instanceName}' created or already exists.`);
-
-        console.log(`[Step 2/4] Registering webhook for '${instanceName}'...`);
-        const webhookPayload = {
-          url: N8N_WEBHOOK_URL,
-          webhook_by_events: false,
-          events: ["QRCODE_UPDATED", "MESSAGES_UPSERT", "CONNECTION_UPDATE"]
-        };
-        const webhookResponse = await fetch(`${EVOLUTION_API_URL}/webhook/update/${instanceName}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json', 'apikey': EVOLUTION_API_KEY },
-            body: JSON.stringify(webhookPayload),
-        });
-
-        if (!webhookResponse.ok) {
-            const errorBody = await webhookResponse.text();
-            throw new Error(`Failed to set webhook: ${webhookResponse.status} ${errorBody}`);
-        }
-        console.log(`[Step 2/4] OK: Webhook successfully registered for instance '${instanceName}'.`);
-
-        console.log(`[Step 3/4] Connecting instance '${instanceName}' to generate QR code...`);
-        const connectResponse = await fetch(`${EVOLUTION_API_URL}/instance/connect/${instanceName}`, {
-          headers: { 'apikey': EVOLUTION_API_KEY }
-        })
-        const connectData = await connectResponse.json();
-        const connectState = connectData.state;
-        console.log(`[Step 3/4] OK: Connection initiated with state: ${connectState}`);
-
-        console.log(`[Step 4/4] Saving connection state to local database...`);
-        const { error: upsertError } = await supabaseAdmin.from('medico_oauth_tokens').upsert({
-          medico_id,
-          provider: 'evolution_api',
-          access_token: EVOLUTION_API_KEY,
-          instance_id: instanceName,
-          instance_name: instanceName,
-          connection_status: connectState || 'pairing',
-          qrcode: null
-        }, { onConflict: 'medico_id, provider' });
-
-        if (upsertError) throw upsertError
-        console.log(`[Step 4/4] OK: Database updated successfully.`);
-
-        return new Response(JSON.stringify({ success: true, status: connectState }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        })
+        
+        const createData = await createResponse.json();
+        console.log(`[Step 1/4] OK: Instance '${instanceName}' created successfully.`);
+        await handleSuccessfulCreation(supabaseAdmin, medico_id, createData);
+        return new Response(JSON.stringify({
+            success: true,
+            status: createData.instance.status,
+            qrcode: createData.qrcode.base64
+        }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
+      
+      // ... (os outros cases 'connection-status' e 'disconnect' permanecem os mesmos) ...
 
       case 'connection-status': {
         const { data: tokenData, error } = await supabaseAdmin
@@ -122,6 +116,24 @@ serve(async (req) => {
           return new Response(JSON.stringify({ status: 'not_configured', qrcode: null }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }
           })
+        }
+
+        // Adicional: verificar o status real na API para sincronia
+        if (tokenData.instance_name) {
+            try {
+                const statusResponse = await fetch(`${EVOLUTION_API_URL}/instance/connectionState/${tokenData.instance_name}`, {
+                    headers: { 'apikey': EVOLUTION_API_KEY! }
+                });
+                if (statusResponse.ok) {
+                    const realStatus = (await statusResponse.json()).state;
+                    if (realStatus !== tokenData.connection_status) {
+                        await supabaseAdmin.from('medico_oauth_tokens').update({ connection_status: realStatus }).eq('instance_name', tokenData.instance_name);
+                        tokenData.connection_status = realStatus;
+                    }
+                }
+            } catch (e) {
+                console.error("Could not sync status with API, returning local status.", e.message);
+            }
         }
 
         return new Response(JSON.stringify({
@@ -144,7 +156,7 @@ serve(async (req) => {
         if (tokenData?.instance_name) {
           await fetch(`${EVOLUTION_API_URL}/instance/delete/${tokenData.instance_name}`, {
             method: 'DELETE',
-            headers: { 'apikey': EVOLUTION_API_KEY }
+            headers: { 'apikey': EVOLUTION_API_KEY! }
           })
         }
 
@@ -158,11 +170,6 @@ serve(async (req) => {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         })
       }
-
-      default:
-        return new Response(JSON.stringify({ error: 'Not Found' }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 404
-        })
     }
   } catch (error) {
     console.error("Evolution Manager Final Error:", error)
@@ -171,3 +178,43 @@ serve(async (req) => {
     })
   }
 })
+
+// Função auxiliar para evitar repetição de código
+async function handleSuccessfulCreation(supabaseAdmin: SupabaseClient, medico_id: string, createData: any) {
+    const instanceName = createData.instance.instanceName;
+
+    // --- ETAPA 2: Registrar o Webhook ---
+    console.log(`[Step 2/4] Registering webhook for '${instanceName}'...`);
+    const webhookPayload = {
+      url: N8N_WEBHOOK_URL,
+      webhook_by_events: false,
+      events: ["MESSAGES_UPSERT", "CONNECTION_UPDATE"] // QR code não é mais necessário aqui
+    };
+    const webhookResponse = await fetch(`${EVOLUTION_API_URL}/webhook/update/${instanceName}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'apikey': EVOLUTION_API_KEY! },
+        body: JSON.stringify(webhookPayload),
+    });
+    if (!webhookResponse.ok) {
+        const errorBody = await webhookResponse.text();
+        // Não lançar erro aqui, apenas avisar, pois a conexão principal pode funcionar.
+        console.error(`Failed to set webhook, but continuing: ${webhookResponse.status} ${errorBody}`);
+    } else {
+        console.log(`[Step 2/4] OK: Webhook successfully registered for instance '${instanceName}'.`);
+    }
+
+    // --- ETAPA 3 e 4: Salvar no DB ---
+    console.log(`[Step 3&4/4] Saving connection state to local database...`);
+    const { error: upsertError } = await supabaseAdmin.from('medico_oauth_tokens').upsert({
+      medico_id,
+      provider: 'evolution_api',
+      access_token: createData.hash, // O hash é o token da instância
+      instance_id: instanceName,
+      instance_name: instanceName,
+      connection_status: createData.instance.status || 'pairing',
+      qrcode: createData.qrcode.base64 // Salva o QR Code imediatamente
+    }, { onConflict: 'medico_id, provider' });
+
+    if (upsertError) throw upsertError;
+    console.log(`[Step 3&4/4] OK: Database updated successfully.`);
+}
