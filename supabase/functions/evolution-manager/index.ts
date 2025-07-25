@@ -49,7 +49,6 @@ serve(async (req) => {
         
         console.log(`[1/3] Attempting to create instance '${instanceName}'...`);
         
-        // Payload exato que funcionou no seu teste do Postman
         const createPayload = {
           instanceName,
           qrcode: true,
@@ -62,7 +61,6 @@ serve(async (req) => {
           body: JSON.stringify(createPayload)
         });
 
-        // Se a instância já existir (erro 403), deleta e tenta criar de novo para garantir um estado limpo.
         if (createResponse.status === 403) {
            console.warn(`Instance '${instanceName}' already exists. Recreating for a clean state...`);
            await fetch(`${EVOLUTION_API_URL}/instance/delete/${instanceName}`, {
@@ -84,36 +82,44 @@ serve(async (req) => {
         const createData = await createResponse.json();
         console.log(`[1/3] OK: Instance created. Received QR Code and Hash.`);
 
-        // ETAPA 2: Salvar os dados corretos no banco de dados
         console.log(`[2/3] Saving data to Supabase...`);
         const { error: upsertError } = await supabaseAdmin.from('medico_oauth_tokens').upsert({
           medico_id,
           provider: 'evolution_api',
-          access_token: createData.hash, // O hash é o token da instância
+          access_token: createData.hash,
           instance_id: instanceName,
           instance_name: instanceName,
           connection_status: createData.instance.status || 'pairing',
-          qrcode: createData.qrcode.base64 // Salva o QR Code imediatamente
+          qrcode: createData.qrcode.base64
         }, { onConflict: 'medico_id, provider' });
 
         if (upsertError) throw upsertError;
         console.log(`[2/3] OK: Supabase updated successfully.`);
         
-        // ETAPA 3: Registrar o Webhook para futuras mensagens e atualizações de status
+        // ETAPA 3: CORRIGIDA - Registrar o Webhook
         console.log(`[3/3] Registering webhook for '${instanceName}'...`);
         const webhookPayload = {
           url: N8N_WEBHOOK_URL,
           webhook_by_events: false,
-          events: ["MESSAGES_UPSERT", "CONNECTION_UPDATE"]
+          events: ["MESSAGES_UPSERT", "CONNECTION_UPDATE", "QRCODE_UPDATED"] // Adicionado QRCODE_UPDATED para feedback visual
         };
-        await fetch(`${EVOLUTION_API_URL}/webhook/update/${instanceName}`, {
-            method: 'PUT',
+
+        // Correção: Usar POST e o endpoint /webhook/set/{instanceName}
+        const webhookResponse = await fetch(`${EVOLUTION_API_URL}/webhook/set/${instanceName}`, {
+            method: 'POST', // CORRIGIDO de PUT para POST
             headers: { 'Content-Type': 'application/json', 'apikey': EVOLUTION_API_KEY },
             body: JSON.stringify(webhookPayload),
         });
-        console.log(`[3/3] OK: Webhook registered.`);
 
-        // Retorna o sucesso e o QR Code diretamente para o frontend
+        // Adicionado: Verificação da resposta do webhook
+        if (!webhookResponse.ok) {
+            const errorBody = await webhookResponse.text();
+            console.error(`[3/3] FAILED to register webhook: ${webhookResponse.status} - ${errorBody}`);
+            // Mesmo que o webhook falhe, continuamos para o usuário poder escanear o QR Code
+        } else {
+            console.log(`[3/3] OK: Webhook successfully registered.`);
+        }
+        
         return new Response(JSON.stringify({
             success: true,
             status: createData.instance.status,
@@ -121,7 +127,6 @@ serve(async (req) => {
         }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
       
-      // Os outros cases (connection-status, disconnect) podem permanecer os mesmos da versão anterior.
       case 'connection-status': {
         const { data, error } = await supabaseAdmin.from('medico_oauth_tokens')
           .select('connection_status, qrcode, instance_name')
