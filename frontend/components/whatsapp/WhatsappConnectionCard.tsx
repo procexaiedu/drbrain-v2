@@ -17,9 +17,10 @@ interface QRCodeModalProps {
   onClose: () => void;
   qrcode: string | null;
   status: ConnectionStatus['status'];
+  isInitialConnectionAttempt: boolean; 
 }
 
-const QRCodeModal: React.FC<QRCodeModalProps> = ({ isOpen, onClose, qrcode, status }) => {
+const QRCodeModal: React.FC<QRCodeModalProps> = ({ isOpen, onClose, qrcode, status, isInitialConnectionAttempt }) => {
   if (!isOpen) return null;
 
   return (
@@ -36,7 +37,15 @@ const QRCodeModal: React.FC<QRCodeModalProps> = ({ isOpen, onClose, qrcode, stat
         </div>
         
         <div className="text-center">
-          {qrcode ? (
+          {isInitialConnectionAttempt && !qrcode ? (
+             <div className="mb-6 h-64 flex flex-col items-center justify-center bg-gray-50 rounded-lg">
+                <svg className="animate-spin h-8 w-8 text-gray-400 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <p className="text-gray-600">A gerar QR Code...</p>
+             </div>
+          ) : qrcode ? (
             <div className="mb-6 p-4 border rounded-lg bg-gray-50">
               <Image 
                 src={qrcode} 
@@ -48,13 +57,9 @@ const QRCodeModal: React.FC<QRCodeModalProps> = ({ isOpen, onClose, qrcode, stat
               />
             </div>
           ) : (
-             <div className="mb-6 h-64 flex flex-col items-center justify-center bg-gray-50 rounded-lg">
-                <svg className="animate-spin h-8 w-8 text-gray-400 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                <p className="text-gray-600">A gerar QR Code...</p>
-             </div>
+            <div className="mb-6 h-64 flex flex-col items-center justify-center bg-gray-50 rounded-lg">
+              <p className="text-gray-600">Aguardando QR Code...</p>
+            </div>
           )}
           
           <div className="space-y-3 text-sm text-gray-600">
@@ -82,6 +87,7 @@ const QRCodeModal: React.FC<QRCodeModalProps> = ({ isOpen, onClose, qrcode, stat
 
 const WhatsappConnectionCard: React.FC = () => {
   const [showQRModal, setShowQRModal] = useState(false);
+  const [isInitialConnectionAttempt, setIsInitialConnectionAttempt] = useState(false); 
   const { session } = useAuth();
   const queryClient = useQueryClient();
 
@@ -105,6 +111,7 @@ const WhatsappConnectionCard: React.FC = () => {
   const connectMutation = useMutation({
     mutationFn: async () => {
       if (!session?.access_token) throw new Error('Not authenticated');
+      setIsInitialConnectionAttempt(true); 
       const response = await fetch('/edge/v1/evolution-manager/connect', {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${session.access_token}` },
@@ -117,13 +124,13 @@ const WhatsappConnectionCard: React.FC = () => {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['whatsapp-connection-status'] });
-      if (data.qrcode) {
-        setShowQRModal(true);
-      }
+      setShowQRModal(true); 
     },
     onError: (error) => {
       console.error('Connect error:', error);
       alert(`Erro ao conectar: ${error.message}`);
+      setIsInitialConnectionAttempt(false); 
+      setShowQRModal(false); 
     },
   });
 
@@ -156,8 +163,12 @@ const WhatsappConnectionCard: React.FC = () => {
   });
   
   useEffect(() => {
-    if ((connectionStatus?.status === 'open' || connectionStatus?.status === 'connected') && showQRModal) {
+    if ((connectionStatus?.status === 'open' || connectionStatus?.status === 'connected')) {
       setShowQRModal(false);
+      setIsInitialConnectionAttempt(false); 
+    }
+    if (connectionStatus?.status === 'pairing' && connectionStatus?.qrcode && !showQRModal) {
+      setShowQRModal(true);
     }
   }, [connectionStatus, showQRModal]);
 
@@ -316,9 +327,16 @@ const WhatsappConnectionCard: React.FC = () => {
 
       <QRCodeModal 
         isOpen={showQRModal}
-        onClose={() => setShowQRModal(false)}
+        onClose={() => {
+          setShowQRModal(false);
+          if (!isConnected && !isPending) {
+            setIsInitialConnectionAttempt(false); 
+            queryClient.invalidateQueries({ queryKey: ['whatsapp-connection-status'] });
+          }
+        }}
         qrcode={connectionStatus?.qrcode || null}
         status={connectionStatus?.status || 'pairing'}
+        isInitialConnectionAttempt={isInitialConnectionAttempt}
       />
     </>
   );
