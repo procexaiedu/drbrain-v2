@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useContext, useEffect } from 'react';
+import { useState, useEffect } from 'react'; // Removido useContext
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { AppContext } from '@/context/AppContext';
-import { createClient } from '@/lib/supabaseClient';
+import { useAuth } from '@/context/AuthContext'; // Usando o hook useAuth
+import { supabase } from '@/lib/supabaseClient';
 
 interface WhatsappConnectionCardProps {
   currentStatus: string;
@@ -12,9 +12,8 @@ interface WhatsappConnectionCardProps {
 export default function WhatsappConnectionCard({ currentStatus }: WhatsappConnectionCardProps) {
   const [showQrModal, setShowQrModal] = useState(false);
   const [qrCodeImage, setQrCodeImage] = useState<string | null>(null);
-  const { user } = useContext(AppContext);
+  const { user } = useAuth(); // Usando o hook useAuth
   const queryClient = useQueryClient();
-  const supabase = createClient();
 
   const connectMutation = useMutation({
     mutationFn: async () => {
@@ -27,9 +26,7 @@ export default function WhatsappConnectionCard({ currentStatus }: WhatsappConnec
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries(['whatsappConnectionStatus', user?.id]);
-      // QR code will be pushed via Supabase Realtime, so no direct QR data here.
-      // We just open the modal.
+      queryClient.invalidateQueries({ queryKey: ['whatsappConnectionStatus', user?.id] });
       setShowQrModal(true);
     },
     onError: (error: any) => {
@@ -49,7 +46,7 @@ export default function WhatsappConnectionCard({ currentStatus }: WhatsappConnec
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries(['whatsappConnectionStatus', user?.id]);
+      queryClient.invalidateQueries({ queryKey: ['whatsappConnectionStatus', user?.id] });
       setQrCodeImage(null);
       setShowQrModal(false);
       alert('Disconnected successfully!');
@@ -59,7 +56,6 @@ export default function WhatsappConnectionCard({ currentStatus }: WhatsappConnec
     },
   });
 
-  // Realtime subscription for QR code
   useEffect(() => {
     if (!user?.id) return;
 
@@ -71,7 +67,7 @@ export default function WhatsappConnectionCard({ currentStatus }: WhatsappConnec
         table: 'medico_oauth_tokens',
         filter: `medico_id=eq.${user.id}`,
       },
-      (payload) => {
+      (payload: { new: any, eventType: string }) => {
         console.log('Realtime QR code/status update received:', payload);
         if (payload.new.connection_status === 'qrcode' && payload.new.access_token) { // Assuming access_token temporarily holds base64 QR
           setQrCodeImage(`data:image/png;base64,${payload.new.access_token}`);
@@ -79,17 +75,17 @@ export default function WhatsappConnectionCard({ currentStatus }: WhatsappConnec
         } else if (payload.new.connection_status === 'connected') {
           setQrCodeImage(null);
           setShowQrModal(false);
-          queryClient.invalidateQueries(['whatsappConnectionStatus', user.id]);
-          queryClient.invalidateQueries(['whatsappConversations', user.id]); // Refresh conversations on connect
+          queryClient.invalidateQueries({ queryKey: ['whatsappConnectionStatus', user.id] });
+          queryClient.invalidateQueries({ queryKey: ['whatsappConversations', user.id] });
         } else if (payload.new.connection_status === 'disconnected') {
           setQrCodeImage(null);
           setShowQrModal(false);
-          queryClient.invalidateQueries(['whatsappConnectionStatus', user.id]);
-          queryClient.invalidateQueries(['whatsappConversations', user.id]); // Clear conversations on disconnect
+          queryClient.invalidateQueries({ queryKey: ['whatsappConnectionStatus', user.id] });
+          queryClient.invalidateQueries({ queryKey: ['whatsappConversations', user.id] });
         }
       }
       )
-      .subscribe((status) => {
+      .subscribe((status: string) => {
         if (status === 'SUBSCRIBED') {
           console.log(`Subscribed to whatsapp_qr_updates:${user.id}`);
         }
@@ -98,7 +94,7 @@ export default function WhatsappConnectionCard({ currentStatus }: WhatsappConnec
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user?.id, queryClient, supabase]);
+  }, [user?.id, queryClient]);
 
   return (
     <div className="flex flex-col items-center justify-center p-6 bg-white rounded-lg shadow-md max-w-md w-full">

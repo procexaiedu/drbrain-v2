@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useContext } from 'react';
+import { useState } from 'react'; // Removido useContext
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { AppContext } from '@/context/AppContext'; // Assuming AppContext holds user info for now
+import { useAuth } from '@/context/AuthContext'; // Usando o hook useAuth
 
 interface MessageInputProps {
   conversationId: string;
@@ -11,7 +11,7 @@ interface MessageInputProps {
 
 export default function MessageInput({ conversationId, contactJid }: MessageInputProps) {
   const [messageContent, setMessageContent] = useState('');
-  const { user } = useContext(AppContext);
+  const { user } = useAuth(); // Usando o hook useAuth
   const queryClient = useQueryClient();
 
   const sendMessageMutation = useMutation({
@@ -39,8 +39,8 @@ export default function MessageInput({ conversationId, contactJid }: MessageInpu
     },
     onSuccess: () => {
       setMessageContent('');
-      queryClient.invalidateQueries(['whatsappMessages', conversationId]); // Invalidate to refetch messages
-      queryClient.invalidateQueries(['whatsappConversations', user?.id]); // Invalidate to update last message/unread count
+      queryClient.invalidateQueries({ queryKey: ['whatsappMessages', conversationId] }); // Ajustado
+      queryClient.invalidateQueries({ queryKey: ['whatsappConversations', user?.id] }); // Ajustado
     },
     onError: (error: any) => {
       alert(`Error sending message: ${error.message}`);

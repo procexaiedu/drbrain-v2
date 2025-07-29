@@ -1,8 +1,7 @@
 'use client';
 
-import { useContext } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { AppContext } from '@/context/AppContext';
+import { useAuth } from '@/context/AuthContext'; // Usando o hook useAuth
 import { Conversation } from '../types';
 
 interface ChatListProps {
@@ -11,7 +10,7 @@ interface ChatListProps {
 }
 
 export default function ChatList({ onSelectConversation, selectedConversationId }: ChatListProps) {
-  const { user } = useContext(AppContext);
+  const { user } = useAuth(); // Usando o hook useAuth
 
   const { data: conversations, isLoading, isError } = useQuery<Conversation[]>(
     ['whatsappConversations', user?.id],
@@ -49,7 +48,7 @@ export default function ChatList({ onSelectConversation, selectedConversationId 
               className={`flex items-center p-3 cursor-pointer hover:bg-gray-100 rounded-md mb-2 ${selectedConversationId === conv.id ? 'bg-blue-100' : ''}`}
             >
               <div className="flex-shrink-0 w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center text-gray-600 font-bold">
-                {conv.contact_name ? conv.contact_name.charAt(0).toUpperCase() : '?''}
+                {conv.contact_name ? conv.contact_name.charAt(0).toUpperCase() : '?'}
               </div>
               <div className="ml-3 flex-grow">
                 <div className="flex justify-between items-center">

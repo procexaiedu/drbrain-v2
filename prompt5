@@ -1,8 +1,0 @@
-gemini --file prd.main.md "O módulo está funcionalmente completo. Sua tarefa final é agir como nosso Engenheiro de Garantia de Qualidade e Segurança. Realize uma auditoria rigorosa de todo o código gerado, confrontando-o com os requisitos dos Módulos 1 e 4 do `prd.main.md`.
-Apresente sua análise como um **Relatório de Auditoria Formal**. Para cada um dos pontos abaixo, forneça um status (`PASS` / `FAIL`) e uma breve justificativa para sua avaliação:
-1.  **Integridade da Segurança em Nível de Linha (RLS):** As políticas de RLS, incluindo `WITH CHECK`, foram aplicadas corretamente para garantir que um médico só possa acessar seus próprios dados de conversa?
-2.  **Gerenciamento de Segredos e Credenciais:** A API Key da Evolution API está devidamente protegida (não está hardcoded) e é acessada via secrets do Supabase e credenciais do n8n?
-3.  **Validação de Injeção de Dados (Webhook):** O workflow n8n principal possui uma etapa de validação explícita para o `apikey` do webhook, prevenindo processamento de requisições não autorizadas?
-4.  **Conformidade da Funcionalidade Crítica (Configuração da Instância):** A Edge Function `evolution-manager` implementa inequivocamente a sequência de três etapas (criar instância, salvar no DB, configurar webhook via API) durante a conexão?
-
-Este relatório será o aceite final para o módulo."
