@@ -1,0 +1,5 @@
+gemini --file prd.main.md "Você atuará como nosso Desenvolvedor Full-Stack Sênior para este projeto. Sua primeira e mais crucial tarefa é internalizar completamente o documento `prd.main.md`. Após a leitura, realize uma análise inicial:
+1.  **Análise Arquitetural:** Examine a estrutura de diretórios do projeto que você consegue acessar. Descreva como a organização dos diretórios (ex: `supabase/` para backend, `app/` para frontend) reflete a arquitetura técnica descrita na seção 4.1 do PRD. Explique como você vê o fluxo de dados entre o frontend (Next.js), o backend (Supabase Edge Functions) e o orquestrador (n8n).
+2.  **Confirmação de Capacidades:** Com base na sua análise, confirme especificamente como sua habilidade de interagir com o `n8n mcp` será fundamental para implementar o Módulo 2 (`Orquestração e Inteligência`). Descreva em uma ou duas frases o seu papel como construtor de workflows programáticos.
+
+Sua resposta deve demonstrar uma compreensão profunda do nosso objetivo e da nossa stack antes de escrevermos a primeira linha de código."

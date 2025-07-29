@@ -1,0 +1,529 @@
+CREATE TABLE public.medico_profiles (
+    id uuid NOT NULL REFERENCES auth.users ON DELETE CASCADE,
+    nome_completo TEXT,
+    email TEXT, -- Pode ser preenchido com user.email
+    telefone TEXT,
+    especialidade_principal TEXT,
+    registro_conselho TEXT,
+    nome_clinica TEXT,
+    endereco_clinica TEXT,
+    nome_secretaria_ia TEXT DEFAULT 'Assistente',
+    onboarding_concluido BOOLEAN DEFAULT FALSE,
+    configuracoes_adicionais_json JSONB,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now(),
+    PRIMARY KEY (id)
+);
+-- Habilitar RLS
+ALTER TABLE public.medico_profiles ENABLE ROW LEVEL SECURITY;
+-- Política: Médicos podem ver e atualizar apenas seu próprio perfil
+CREATE POLICY "Medico_own_profile_access"
+ON public.medico_profiles
+FOR ALL
+USING (auth.uid() = id)
+WITH CHECK (auth.uid() = id);
+-- Função para atualizar 'updated_at'
+CREATE OR REPLACE FUNCTION public.handle_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = now();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+CREATE TRIGGER on_medico_profiles_updated
+BEFORE UPDATE ON public.medico_profiles
+FOR EACH ROW
+EXECUTE PROCEDURE public.handle_updated_at();
+
+---//---
+
+-- Primeiro, crie a função genérica para atualizar um campo de timestamp específico
+-- Ela espera que o NOME DO CAMPO seja passado como o PRIMEIRO argumento do trigger.
+CREATE OR REPLACE FUNCTION public.update_timestamp_on_change()
+RETURNS TRIGGER AS $$
+DECLARE
+    field_to_update TEXT;
+BEGIN
+    -- TG_ARGV[0] contém o primeiro argumento passado para o trigger na sua definição.
+    -- Nós passaremos o nome do campo do timestamp como este argumento.
+    IF TG_NARGS > 0 AND TG_ARGV[0] IS NOT NULL THEN
+        field_to_update := TG_ARGV[0];
+        -- Usar EXECUTE format para construir dinamicamente a atribuição do campo NEW
+        EXECUTE format('NEW.%I = NOW()', field_to_update);
+    ELSE
+        -- Se nenhum argumento for passado, pode-se ter um comportamento padrão
+        -- ou lançar um erro, mas para este caso, vamos assumir que o argumento é sempre fornecido.
+        -- Ou, poderia atualizar um campo padrão como 'updated_at' se nenhum argumento for dado.
+        -- NEW.updated_at = NOW(); -- Exemplo de fallback, mas não usado aqui.
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Crie a tabela medico_secretaria_ia_prompts
+CREATE TABLE public.medico_secretaria_ia_prompts (
+    medico_id uuid NOT NULL REFERENCES auth.users ON DELETE CASCADE,
+    prompt_texto_producao TEXT,
+    prompt_texto_laboratorio TEXT,
+    updated_at_producao TIMESTAMPTZ DEFAULT now(),
+    updated_at_laboratorio TIMESTAMPTZ DEFAULT now(),
+    PRIMARY KEY (medico_id)
+);
+
+-- Habilite RLS
+ALTER TABLE public.medico_secretaria_ia_prompts ENABLE ROW LEVEL SECURITY;
+
+-- Crie a política de RLS
+CREATE POLICY "Medico_own_prompts_access"
+ON public.medico_secretaria_ia_prompts
+FOR ALL
+USING (auth.uid() = medico_id)
+WITH CHECK (auth.uid() = medico_id);
+
+-- Crie os triggers, passando o nome do campo como argumento
+-- Trigger para updated_at_producao
+CREATE TRIGGER on_medico_secretaria_ia_prompts_prod_updated
+BEFORE UPDATE OF prompt_texto_producao ON public.medico_secretaria_ia_prompts
+FOR EACH ROW
+EXECUTE FUNCTION public.update_timestamp_on_change('updated_at_producao'); -- Passa 'updated_at_producao' como argumento
+
+-- Trigger para updated_at_laboratorio
+CREATE TRIGGER on_medico_secretaria_ia_prompts_lab_updated
+BEFORE UPDATE OF prompt_texto_laboratorio ON public.medico_secretaria_ia_prompts
+FOR EACH ROW
+EXECUTE FUNCTION public.update_timestamp_on_change('updated_at_laboratorio'); -- Passa 'updated_at_laboratorio' como argumento
+
+---//---
+
+INSERT INTO public.medico_profiles (id, nome_completo, email, onboarding_concluido)
+VALUES ('5f50610b-30cf-45ec-9c5d-cc1daf2d402a', 'ProceX', 'contato@procexai.tech', true);
+
+---//---
+
+    SELECT column_name, data_type, column_default, is_nullable
+    FROM information_schema.columns
+    WHERE table_name = 'prontuarios'
+    ORDER BY ordinal_position;  
+
+---//---
+
+SET TIME ZONE 'America/Sao_Paulo';
+
+---//---
+
+-- Tabela medico_profiles (já deve existir, apenas para referência de FK)
+-- CREATE TABLE public.medico_profiles (...);
+
+-- Tabela medico_secretaria_ia_prompts (já deve existir)
+-- CREATE TABLE public.medico_secretaria_ia_prompts (...);
+
+-- Tabela feedbacks_sistema (será criada com seu módulo)
+-- CREATE TABLE public.feedbacks_sistema (...);
+
+-- Tabela leads (será criada com o módulo CRM)
+-- CREATE TABLE public.leads (...);
+
+-- Tabela documentos_contato (será criada com o módulo CRM)
+-- CREATE TABLE public.documentos_contato (...);
+
+-- Tabela PACIENTES (Versão Inicial para o Módulo de Prontuários)
+CREATE TABLE public.pacientes (
+    id uuid NOT NULL DEFAULT uuid_generate_v4(),
+    medico_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    nome_completo TEXT NOT NULL,
+    cpf TEXT NULL, -- Pode ser nulo inicialmente, preenchido depois no CRM
+    data_cadastro_paciente TIMESTAMPTZ NOT NULL DEFAULT now(),
+    -- Adicionar mais campos quando desenvolvermos o CRM completo
+    CONSTRAINT pacientes_pkey PRIMARY KEY (id)
+);
+
+ALTER TABLE public.pacientes ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Medico_own_pacientes_access"
+ON public.pacientes
+FOR ALL
+USING (auth.uid() = medico_id)
+WITH CHECK (auth.uid() = medico_id);
+
+CREATE INDEX IF NOT EXISTS idx_pacientes_medico_id ON public.pacientes(medico_id);
+CREATE INDEX IF NOT EXISTS idx_pacientes_cpf ON public.pacientes(cpf); -- Mesmo que nulo, para futuras buscas
+
+-- Tabela PRONTUARIOS (Versão Final com FK para pacientes e audio_storage_path)
+CREATE TABLE public.prontuarios (
+    id uuid NOT NULL DEFAULT uuid_generate_v4(),
+    medico_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    paciente_id uuid NULL REFERENCES public.pacientes(id) ON DELETE SET NULL, -- Permite prontuário sem paciente inicialmente se necessário, ou obriga se for o fluxo
+    data_consulta DATE NOT NULL,
+    status_prontuario TEXT NOT NULL DEFAULT 'PENDENTE_UPLOAD_STORAGE',
+    audio_storage_path TEXT NULL, -- Caminho do arquivo no Supabase Storage
+    audio_original_filename TEXT NULL,
+    conteudo_transcricao_bruta TEXT NULL,
+    conteudo_rascunho TEXT NULL,
+    conteudo_finalizado TEXT NULL,
+    data_criacao TIMESTAMPTZ NOT NULL DEFAULT now(),
+    data_ultima_modificacao TIMESTAMPTZ NOT NULL DEFAULT now(),
+    erro_processamento_msg TEXT NULL,
+    CONSTRAINT prontuarios_pkey PRIMARY KEY (id)
+);
+
+ALTER TABLE public.prontuarios ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Medico_own_prontuarios_access"
+ON public.prontuarios
+FOR ALL
+USING (auth.uid() = medico_id)
+WITH CHECK (auth.uid() = medico_id);
+
+-- Função para atualizar 'data_ultima_modificacao' (Reutilizar se já existir ou criar específica)
+CREATE OR REPLACE FUNCTION public.handle_prontuarios_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.data_ultima_modificacao = now();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER on_prontuarios_updated
+BEFORE UPDATE ON public.prontuarios
+FOR EACH ROW
+EXECUTE PROCEDURE public.handle_prontuarios_updated_at();
+
+CREATE INDEX IF NOT EXISTS idx_prontuarios_medico_id ON public.prontuarios(medico_id);
+CREATE INDEX IF NOT EXISTS idx_prontuarios_paciente_id ON public.prontuarios(paciente_id);
+
+---//---
+
+-- Trigger SQL OTIMIZADO para Produção
+-- Edge Function trigger para storage uploads
+
+-- Criar função que chama a Edge Function com error handling
+CREATE OR REPLACE FUNCTION trigger_storage_upload()
+RETURNS TRIGGER AS $$
+DECLARE
+  response_status integer;
+  response_content text;
+BEGIN
+  -- Verificar se é um arquivo no bucket correto
+  IF NEW.bucket_id = 'consultas-audio' THEN
+    
+    -- Log do evento
+    RAISE LOG 'Storage trigger: processando arquivo % no bucket %', NEW.name, NEW.bucket_id;
+    
+    BEGIN
+      -- Chamar Edge Function com timeout
+      SELECT status, content INTO response_status, response_content
+      FROM net.http_post(
+        url := 'https://erutqtbknunsjfnkeevt.supabase.co/functions/v1/storage-trigger-to-n8n-prontuarios',
+        headers := jsonb_build_object(
+          'Content-Type', 'application/json',
+          'User-Agent', 'Supabase-Storage-Trigger/1.0'
+        ),
+        body := jsonb_build_object(
+          'type', 'INSERT',
+          'table', 'objects',
+          'record', row_to_json(NEW),
+          'schema', 'storage'
+        )::text,
+        timeout_milliseconds := 30000  -- 30 segundos timeout
+      );
+      
+      -- Log success/failure
+      IF response_status BETWEEN 200 AND 299 THEN
+        RAISE LOG 'Storage trigger: sucesso para arquivo % (status: %)', NEW.name, response_status;
+      ELSE
+        RAISE WARNING 'Storage trigger: falha para arquivo % (status: %, response: %)', 
+          NEW.name, response_status, response_content;
+      END IF;
+      
+    EXCEPTION WHEN OTHERS THEN
+      -- Log error mas não falha o trigger
+      RAISE WARNING 'Storage trigger: erro para arquivo %: %', NEW.name, SQLERRM;
+    END;
+    
+  END IF;
+  
+  -- SEMPRE retorna NEW para não bloquear o insert
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Remover trigger existente se houver
+DROP TRIGGER IF EXISTS storage_upload_trigger ON storage.objects;
+
+-- Criar trigger que executa após INSERT na tabela storage.objects
+CREATE TRIGGER storage_upload_trigger
+  AFTER INSERT ON storage.objects
+  FOR EACH ROW
+  EXECUTE FUNCTION trigger_storage_upload();
+
+-- Verificar se o trigger foi criado
+SELECT 
+  trigger_name, 
+  event_manipulation, 
+  event_object_table 
+FROM information_schema.triggers 
+WHERE trigger_name = 'storage_upload_trigger'; 
+
+---//---
+
+-- Enable the pgvector extension to work with embedding vectors
+create extension vector;
+
+-- Create a table to store your documents
+create table documents (
+  id bigserial primary key,
+  content text, -- corresponds to Document.pageContent
+  metadata jsonb, -- corresponds to Document.metadata
+  embedding vector(1536) -- 1536 works for OpenAI embeddings, change if needed
+);
+
+-- Create a function to search for documents
+create function match_documents (
+  query_embedding vector(1536),
+  match_count int default null,
+  filter jsonb DEFAULT '{}'
+) returns table (
+  id bigint,
+  content text,
+  metadata jsonb,
+  similarity float
+)
+language plpgsql
+as $$
+#variable_conflict use_column
+begin
+  return query
+  select
+    id,
+    content,
+    metadata,
+    1 - (documents.embedding <=> query_embedding) as similarity
+  from documents
+  where metadata @> filter
+  order by documents.embedding <=> query_embedding
+  limit match_count;
+end;
+$$;
+
+---//---
+
+-- Criar tabela feedbacks_sistema
+CREATE TABLE IF NOT EXISTS feedbacks_sistema (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  medico_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  feedback_texto TEXT NOT NULL,
+  status TEXT DEFAULT 'Aberto' CHECK (status IN ('Aberto', 'Em Análise', 'Resolvido', 'Fechado')),
+  data_criacao TIMESTAMPTZ DEFAULT NOW(),
+  data_ultima_atualizacao_status TIMESTAMPTZ DEFAULT NOW(),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Criar índices para performance
+CREATE INDEX IF NOT EXISTS idx_feedbacks_sistema_medico_id ON feedbacks_sistema(medico_id);
+CREATE INDEX IF NOT EXISTS idx_feedbacks_sistema_status ON feedbacks_sistema(status);
+CREATE INDEX IF NOT EXISTS idx_feedbacks_sistema_data_criacao ON feedbacks_sistema(data_criacao);
+
+-- Habilitar RLS (Row Level Security)
+ALTER TABLE feedbacks_sistema ENABLE ROW LEVEL SECURITY;
+
+-- Política RLS: Médicos podem criar e visualizar apenas seus próprios feedbacks
+CREATE POLICY "Médicos podem criar feedbacks" ON feedbacks_sistema
+  FOR INSERT WITH CHECK (auth.uid() = medico_id);
+
+CREATE POLICY "Médicos podem visualizar seus feedbacks" ON feedbacks_sistema
+  FOR SELECT USING (auth.uid() = medico_id);
+
+-- Trigger para atualizar updated_at automaticamente
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+CREATE TRIGGER update_feedbacks_sistema_updated_at 
+  BEFORE UPDATE ON feedbacks_sistema 
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Comentários para documentação
+COMMENT ON TABLE feedbacks_sistema IS 'Tabela para armazenar feedbacks dos médicos sobre o sistema Dr.Brain';
+COMMENT ON COLUMN feedbacks_sistema.medico_id IS 'ID do médico que enviou o feedback';
+COMMENT ON COLUMN feedbacks_sistema.feedback_texto IS 'Texto consolidado do feedback processado pelo agente IA';
+COMMENT ON COLUMN feedbacks_sistema.status IS 'Status atual do feedback (Aberto, Em Análise, Resolvido, Fechado)';
+COMMENT ON COLUMN feedbacks_sistema.data_criacao IS 'Data e hora de criação do feedback';
+COMMENT ON COLUMN feedbacks_sistema.data_ultima_atualizacao_status IS 'Data e hora da última atualização do status'; 
+
+---//---
+
+CREATE OR REPLACE FUNCTION public.update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$ LANGUAGE 'plpgsql';
+
+---//---
+
+CREATE TABLE public.leads (
+    id uuid NOT NULL DEFAULT uuid_generate_v4(),
+    medico_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    nome_lead TEXT NOT NULL,
+    telefone_principal TEXT NOT NULL,
+    email_lead TEXT NULL,
+    origem_lead TEXT NULL,
+    status_funil_lead TEXT NOT NULL DEFAULT 'Novo Lead' CHECK (status_funil_lead IN ('Novo Lead', 'Contato Feito', 'Consulta Agendada', 'Convertido', 'Perdido')),
+    motivo_perda_lead TEXT NULL,
+    data_criacao TIMESTAMPTZ NOT NULL DEFAULT now(),
+    data_ultima_atualizacao_status TIMESTAMPTZ NOT NULL DEFAULT now(),
+    notas_internas_lead TEXT NULL,
+    paciente_id_convertido uuid NULL, -- FK será adicionada após 'pacientes' existir, se necessário para integridade referencial bidirecional imediata
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    CONSTRAINT leads_pkey PRIMARY KEY (id)
+);
+ALTER TABLE public.leads ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Medico_own_leads_access" ON public.leads FOR ALL USING (auth.uid() = medico_id) WITH CHECK (auth.uid() = medico_id);
+CREATE INDEX IF NOT EXISTS idx_leads_medico_id ON public.leads(medico_id);
+CREATE INDEX IF NOT EXISTS idx_leads_status_funil ON public.leads(status_funil_lead);
+CREATE TRIGGER update_leads_updated_at BEFORE UPDATE ON public.leads FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+---//---
+
+-- Garantir que a tabela pacientes exista (se foi criada de forma básica antes)
+-- ou criar se não existir.
+CREATE TABLE IF NOT EXISTS public.pacientes (
+    id uuid NOT NULL DEFAULT uuid_generate_v4(),
+    medico_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    nome_completo TEXT NOT NULL,
+    cpf TEXT NULL,
+    data_cadastro_paciente TIMESTAMPTZ NOT NULL DEFAULT now(),
+    -- Colunas que serão adicionadas/garantidas abaixo
+    CONSTRAINT pacientes_pkey PRIMARY KEY (id)
+);
+
+-- Adicionar/Alterar colunas conforme necessário para o CRM completo:
+ALTER TABLE public.pacientes
+  ADD COLUMN IF NOT EXISTS email_paciente TEXT NULL,
+  ADD COLUMN IF NOT EXISTS data_nascimento DATE NULL,
+  ADD COLUMN IF NOT EXISTS sexo TEXT NULL CHECK (sexo IN ('Masculino', 'Feminino', 'Outro', 'Prefiro não informar')),
+  ADD COLUMN IF NOT EXISTS endereco_completo_json JSONB NULL,
+  ADD COLUMN IF NOT EXISTS status_paciente TEXT NOT NULL DEFAULT 'Paciente Ativo' CHECK (status_paciente IN ('Paciente Ativo', 'Em Pós-Consulta', 'Inativo')),
+  ADD COLUMN IF NOT EXISTS notas_gerais_paciente TEXT NULL,
+  ADD COLUMN IF NOT EXISTS lead_origem_id UUID NULL REFERENCES public.leads(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+
+-- Adicionar constraints UNIQUE se forem requisitos obrigatórios para o médico.
+-- Exemplo para CPF:
+-- ALTER TABLE public.pacientes ADD CONSTRAINT unique_cpf_por_medico UNIQUE (medico_id, cpf);
+-- Exemplo para Email:
+-- ALTER TABLE public.pacientes ADD CONSTRAINT unique_email_paciente_por_medico UNIQUE (medico_id, email_paciente);
+
+-- Habilitar RLS se ainda não estiver
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'pacientes' AND relrowsecurity) THEN
+    ALTER TABLE public.pacientes ENABLE ROW LEVEL SECURITY;
+  END IF;
+END $$;
+
+-- Aplicar Política RLS se ainda não existir
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Medico_own_pacientes_access' AND tablename = 'pacientes') THEN
+    CREATE POLICY "Medico_own_pacientes_access"
+    ON public.pacientes
+    FOR ALL
+    USING (auth.uid() = medico_id)
+    WITH CHECK (auth.uid() = medico_id);
+  END IF;
+END $$;
+
+-- Aplicar o trigger para updated_at, SE AINDA NÃO EXISTIR UM TRIGGER DE UPDATE PARA ESTA TABELA
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_trigger
+    WHERE tgname = 'update_pacientes_updated_at' AND tgrelid = 'public.pacientes'::regclass
+  ) THEN
+    CREATE TRIGGER update_pacientes_updated_at
+      BEFORE UPDATE ON public.pacientes
+      FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+  END IF;
+END $$;
+
+-- Índices (alguns podem já existir)
+CREATE INDEX IF NOT EXISTS idx_pacientes_medico_id ON public.pacientes(medico_id);
+CREATE INDEX IF NOT EXISTS idx_pacientes_cpf ON public.pacientes(cpf);
+
+---//---
+
+ALTER TABLE public.leads
+  ADD CONSTRAINT fk_paciente_convertido
+  FOREIGN KEY (paciente_id_convertido)
+  REFERENCES public.pacientes(id)
+  ON DELETE SET NULL
+  DEFERRABLE INITIALLY DEFERRED;
+
+---//---
+
+CREATE TABLE public.documentos_contato (
+    id uuid NOT NULL DEFAULT uuid_generate_v4(),
+    medico_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    lead_id uuid NULL REFERENCES public.leads(id) ON DELETE CASCADE,
+    paciente_id uuid NULL REFERENCES public.pacientes(id) ON DELETE CASCADE,
+    nome_arquivo_original TEXT NOT NULL,
+    tipo_arquivo TEXT NULL,
+    storage_path TEXT NOT NULL,
+    data_upload TIMESTAMPTZ NOT NULL DEFAULT now(),
+    descricao_documento TEXT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    CONSTRAINT documentos_contato_pkey PRIMARY KEY (id),
+    CONSTRAINT chk_contato_pelo_menos_um_id CHECK (lead_id IS NOT NULL OR paciente_id IS NOT NULL)
+);
+ALTER TABLE public.documentos_contato ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Medico_own_documentos_contato_access" ON public.documentos_contato FOR ALL USING (auth.uid() = medico_id) WITH CHECK (auth.uid() = medico_id);
+CREATE INDEX IF NOT EXISTS idx_documentos_contato_medico_id ON public.documentos_contato(medico_id);
+CREATE INDEX IF NOT EXISTS idx_documentos_contato_lead_id ON public.documentos_contato(lead_id);
+CREATE INDEX IF NOT EXISTS idx_documentos_contato_paciente_id ON public.documentos_contato(paciente_id);
+CREATE TRIGGER update_documentos_contato_updated_at BEFORE UPDATE ON public.documentos_contato FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+---//---
+
+ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
+
+---//---
+
+        CREATE TABLE public.medico_oauth_tokens (
+            medico_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+            provider TEXT NOT NULL CHECK (provider IN ('google_calendar')), -- Para futuras outras conexões
+            access_token TEXT NOT NULL, -- Deverá ser armazenado ENCRIPTADO
+            refresh_token TEXT NULL,    -- Deverá ser armazenado ENCRIPTADO
+            expires_at TIMESTAMPTZ NULL, -- Timestamp de quando o access_token expira
+            scopes TEXT[] NULL,         -- Array dos escopos concedidos
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            updated_at TIMESTAMPTZ DEFAULT NOW(),
+            CONSTRAINT medico_oauth_tokens_pkey PRIMARY KEY (medico_id, provider)
+        );
+
+        ALTER TABLE public.medico_oauth_tokens ENABLE ROW LEVEL SECURITY;
+
+        -- Apenas o próprio médico (ou uma função de serviço) deve poder acessar/modificar seus tokens.
+        -- Para escrita, geralmente será o BFF com service role. Para leitura pelo BFF, também.
+        -- Esta política é mais para o caso de acesso direto não privilegiado.
+        CREATE POLICY "Medicos podem gerenciar seus proprios OAuth tokens"
+        ON public.medico_oauth_tokens
+        FOR ALL
+        USING (auth.uid() = medico_id)
+        WITH CHECK (auth.uid() = medico_id);
+
+        -- Trigger para updated_at (reutilizar função update_updated_at_column() se existir)
+        CREATE TRIGGER update_medico_oauth_tokens_updated_at
+          BEFORE UPDATE ON public.medico_oauth_tokens
+          FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+---//---

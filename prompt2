@@ -1,0 +1,8 @@
+gemini --file prd.main.md "Excelente análise. Agora, vamos construir a fundação do nosso backend. O objetivo é implementar todo o Módulo 1 do `prd.main.md`.
+1.  **Plano de Ação para o Backend:** Antes de gerar o código, delineie seu plano. Descreva como você irá:
+    a) Estruturar a migração SQL, mencionando as colunas e políticas de RLS críticas (`instance_name`, `connection_status`, `WITH CHECK`).
+    b) Implementar a lógica da Edge Function `evolution-manager`, focando na sequência exata para o endpoint `POST /connect`: (i) Chamar `instance/create`, (ii) Armazenar o `instanceName` no Supabase, (iii) Chamar `settings/set` para configurar o webhook usando o payload exato do PRD.
+2.  **Execução do Plano:** Agora, execute o plano que você descreveu. Gere o código completo:
+    a) Crie um novo arquivo de migração em `supabase/migrations/$(date +%Y%m%d%H%M%S)_create_whatsapp_module_v2.sql` com o DDL SQL robustecido.
+    b) Crie e popule os arquivos `supabase/functions/evolution-manager/index.ts` e `supabase/functions/whatsapp-chat/index.ts` com o código TypeScript completo e funcional.
+3.  **Confirmação:** Ao final, confirme que a implementação está concluída e que a lógica crítica de configuração do webhook no `evolution-manager` foi implementada exatamente como planejado."
