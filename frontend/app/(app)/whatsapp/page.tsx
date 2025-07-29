@@ -58,7 +58,7 @@ export default function WhatsappPage() {
             queryClient.invalidateQueries({ queryKey: ['whatsappConversations', user.id] });
           }
         )
-        .subscribe((status) => {
+        .subscribe((status: string) => {
           if (status === 'SUBSCRIBED') {
             console.log(`Subscribed to whatsapp_updates:${user.id}`);
           }
@@ -97,8 +97,8 @@ export default function WhatsappPage() {
         (payload) => {
           console.log('Realtime whatsapp_conversations change received!', payload);
           queryClient.invalidateQueries({ queryKey: ['whatsappConversations', user.id] });
-          if (payload.eventType === 'INSERT' && 'id' in payload.new) { // Verificação adicional de payload.new.id
-            const newConversationId = (payload.new as Conversation).id; // Cast para Conversation
+          if (payload.eventType === 'INSERT' && 'id' in payload.new) { 
+            const newConversationId = payload.new.id as string; // Acessando diretamente e cast simples para string
             const messagesChannel = supabase
               .channel(`whatsapp_messages_conv:${newConversationId}`)
               .on<RealtimePostgresChangesPayload<{
@@ -188,7 +188,7 @@ export default function WhatsappPage() {
   return (
     <div className="flex h-[calc(100vh-64px)] bg-gray-50">
       <div className="w-1/3 border-r bg-white p-4 overflow-y-auto">
-        <ChatList onSelectConversation={setSelectedConversation} selectedConversationId={selectedConversation?.id} />
+        <ChatList onSelectConversation={setSelectedConversation} selectedConversationId={selectedConversation?.id ?? null} /> {/* Corrigido: ?? null */}
       </div>
       <div className="w-2/3 flex flex-col">
         {selectedConversation ? (
