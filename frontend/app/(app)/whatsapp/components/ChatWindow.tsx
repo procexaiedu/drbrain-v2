@@ -4,24 +4,31 @@ import { useContext, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import { Conversation, Message } from '../types';
-import MessageInput from './MessageInput'; // Confirmed path and export
+import MessageInput from './MessageInput'; 
 import { supabase } from '@/lib/supabaseClient';
 
 interface ChatWindowProps {
   conversation: Conversation;
 }
 
+const SUPABASE_FUNCTIONS_URL = process.env.NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL;
+
 export default function ChatWindow({ conversation }: ChatWindowProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const messagesEndRef = useRef<HTMLDivElement>(null); // Corrigido de HTMLDivLement
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  if (!SUPABASE_FUNCTIONS_URL) {
+    console.error("NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL is not defined");
+    return <div className="text-red-500">Erro: URL das funções Supabase não configurada.</div>;
+  }
 
   const { data, isLoading, isError } = useQuery<Message[]>(
     {
       queryKey: ['whatsappMessages', conversation.id],
       queryFn: async () => {
         if (!user?.id) return [];
-        const res = await fetch(`/api/whatsapp-chat/messages?conversation_id=${conversation.id}`);
+        const res = await fetch(`${SUPABASE_FUNCTIONS_URL}/whatsapp-chat/messages?conversation_id=${conversation.id}`); // URL corrigida
         if (!res.ok) throw new Error('Failed to fetch messages');
         return res.json();
       },
@@ -29,14 +36,13 @@ export default function ChatWindow({ conversation }: ChatWindowProps) {
     }
   );
 
-  // Ensure messages is always an array for mapping
   const messages: Message[] = data || [];
 
   const markAsReadMutation = useMutation({
     mutationFn: async () => {
       if (!user?.id) throw new Error('User not logged in');
 
-      const res = await fetch(`/api/whatsapp-chat/mark-as-read`, {
+      const res = await fetch(`${SUPABASE_FUNCTIONS_URL}/whatsapp-chat/mark-as-read`, { // URL corrigida
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ conversation_id: conversation.id, medico_id: user.id }),
@@ -80,7 +86,7 @@ export default function ChatWindow({ conversation }: ChatWindowProps) {
         };
     }
 
-  }, [conversation.id, conversation.unread_messages, user?.id, queryClient, markAsReadMutation]); // Adicionado markAsReadMutation como dependência
+  }, [conversation.id, conversation.unread_messages, user?.id, queryClient, markAsReadMutation]);
 
   if (isLoading) {
     return <div className="flex flex-col items-center justify-center h-full text-gray-500">Carregando mensagens...</div>;

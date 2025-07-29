@@ -1,25 +1,32 @@
 'use client';
 
-import { useState, useEffect } from 'react'; // Removido useContext
+import { useState, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useAuth } from '@/context/AuthContext'; // Usando o hook useAuth
+import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabaseClient';
-import Image from 'next/image'; // Importar o componente Image do Next.js
+import Image from 'next/image';
 
 interface WhatsappConnectionCardProps {
   currentStatus: string;
 }
 
+const SUPABASE_FUNCTIONS_URL = process.env.NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL;
+
 export default function WhatsappConnectionCard({ currentStatus }: WhatsappConnectionCardProps) {
   const [showQrModal, setShowQrModal] = useState(false);
   const [qrCodeImage, setQrCodeImage] = useState<string | null>(null);
-  const { user } = useAuth(); // Usando o hook useAuth
+  const { user } = useAuth();
   const queryClient = useQueryClient();
+
+  if (!SUPABASE_FUNCTIONS_URL) {
+    console.error("NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL is not defined");
+    return <div className="text-red-500">Erro: URL das funções Supabase não configurada.</div>;
+  }
 
   const connectMutation = useMutation({
     mutationFn: async () => {
       if (!user?.id) throw new Error('User not logged in');
-      const res = await fetch('/api/evolution-manager/connect', { method: 'POST' });
+      const res = await fetch(`${SUPABASE_FUNCTIONS_URL}/evolution-manager/connect`, { method: 'POST' }); // URL corrigida
       if (!res.ok) {
         const errorData = await res.json();
         throw new Error(errorData.message || 'Failed to initiate connection');
@@ -39,7 +46,7 @@ export default function WhatsappConnectionCard({ currentStatus }: WhatsappConnec
   const disconnectMutation = useMutation({
     mutationFn: async () => {
       if (!user?.id) throw new Error('User not logged in');
-      const res = await fetch('/api/evolution-manager/disconnect', { method: 'DELETE' });
+      const res = await fetch(`${SUPABASE_FUNCTIONS_URL}/evolution-manager/disconnect`, { method: 'DELETE' }); // URL corrigida
       if (!res.ok) {
         const errorData = await res.json();
         throw new Error(errorData.message || 'Failed to disconnect');
@@ -70,14 +77,14 @@ export default function WhatsappConnectionCard({ currentStatus }: WhatsappConnec
       },
       (payload: { new: any, eventType: string }) => {
         console.log('Realtime QR code/status update received:', payload);
-        if (payload.new.connection_status === 'qrcode' && payload.new.access_token) { // Assuming access_token temporarily holds base64 QR
+        if (payload.new.connection_status === 'qrcode' && payload.new.access_token) { 
           setQrCodeImage(`data:image/png;base64,${payload.new.access_token}`);
           setShowQrModal(true);
         } else if (payload.new.connection_status === 'connected') {
           setQrCodeImage(null);
           setShowQrModal(false);
           queryClient.invalidateQueries({ queryKey: ['whatsappConnectionStatus', user.id] });
-          queryClient.invalidateQueries({ queryKey: ['whatsappConversations', user.id] });
+          queryClient.invalidateQueries({ queryKey: ['whatsappConversations', user.id] }); 
         } else if (payload.new.connection_status === 'disconnected') {
           setQrCodeImage(null);
           setShowQrModal(false);

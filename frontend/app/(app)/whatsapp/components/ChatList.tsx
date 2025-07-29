@@ -9,15 +9,22 @@ interface ChatListProps {
   selectedConversationId: string | null;
 }
 
+const SUPABASE_FUNCTIONS_URL = process.env.NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL;
+
 export default function ChatList({ onSelectConversation, selectedConversationId }: ChatListProps) {
   const { user } = useAuth();
+
+  if (!SUPABASE_FUNCTIONS_URL) {
+    console.error("NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL is not defined");
+    return <div className="text-red-500">Erro: URL das funções Supabase não configurada.</div>;
+  }
 
   const { data, isLoading, isError } = useQuery<Conversation[]>(
     {
       queryKey: ['whatsappConversations', user?.id],
       queryFn: async () => {
         if (!user?.id) return [];
-        const res = await fetch('/api/whatsapp-chat/conversations');
+        const res = await fetch(`${SUPABASE_FUNCTIONS_URL}/whatsapp-chat/conversations`); // URL corrigida
         if (!res.ok) throw new Error('Failed to fetch conversations');
         return res.json();
       },
@@ -26,7 +33,6 @@ export default function ChatList({ onSelectConversation, selectedConversationId 
     }
   );
 
-  // Garante que 'conversations' é sempre um array para métodos de array
   const conversations: Conversation[] = data || [];
 
   if (isLoading) {
@@ -37,7 +43,7 @@ export default function ChatList({ onSelectConversation, selectedConversationId 
     return <div className="text-center py-4 text-red-500">Erro ao carregar conversas.</div>;
   }
 
-  if (conversations.length === 0) { // Agora 'conversations' é sempre um array
+  if (conversations.length === 0) {
     return <div className="text-center py-4 text-gray-500">Nenhuma conversa encontrada.</div>;
   }
 
@@ -46,7 +52,7 @@ export default function ChatList({ onSelectConversation, selectedConversationId 
       <h3 className="text-xl font-bold mb-4">Conversas</h3>
       <ul>
         {conversations
-          .sort((a, b) => new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime()) // 'conversations' agora é Message[]
+          .sort((a, b) => new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime())
           .map((conv) => (
             <li
               key={conv.id}
