@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'; // Removido useContext
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext'; // Usando o hook useAuth
 import { supabase } from '@/lib/supabaseClient';
+import Image from 'next/image'; // Importar o componente Image do Next.js
 
 interface WhatsappConnectionCardProps {
   currentStatus: string;
@@ -114,18 +115,18 @@ export default function WhatsappConnectionCard({ currentStatus }: WhatsappConnec
       {currentStatus === 'disconnected' || currentStatus === 'error' || currentStatus === 'connecting' ? (
         <button
           onClick={() => connectMutation.mutate()}
-          disabled={connectMutation.isLoading || currentStatus === 'connecting'}
+          disabled={connectMutation.isPending || currentStatus === 'connecting'}
           className="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {connectMutation.isLoading || currentStatus === 'connecting' ? 'Iniciando Conexão...' : 'Conectar WhatsApp'}
+          {connectMutation.isPending || currentStatus === 'connecting' ? 'Iniciando Conexão...' : 'Conectar WhatsApp'}
         </button>
       ) : (
         <button
           onClick={() => disconnectMutation.mutate()}
-          disabled={disconnectMutation.isLoading}
+          disabled={disconnectMutation.isPending}
           className="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {disconnectMutation.isLoading ? 'Desconectando...' : 'Desconectar WhatsApp'}
+          {disconnectMutation.isPending ? 'Desconectando...' : 'Desconectar WhatsApp'}
         </button>
       )}
 
@@ -134,7 +135,14 @@ export default function WhatsappConnectionCard({ currentStatus }: WhatsappConnec
           <div className="bg-white p-8 rounded-lg shadow-xl text-center">
             <h3 className="text-xl font-bold mb-4">Escaneie o QR Code</h3>
             <p className="text-gray-700 mb-4">Abra o WhatsApp no seu celular, vá em Aparelhos Conectados e escaneie o código abaixo:</p>
-            <img src={qrCodeImage} alt="QR Code" className="mx-auto mb-4 w-64 h-64" />
+            <Image
+              src={qrCodeImage}
+              alt="QR Code"
+              width={256} // Tamanho fixo para QR Code (w-64 = 256px)
+              height={256} // Tamanho fixo para QR Code (h-64 = 256px)
+              className="mx-auto mb-4"
+              unoptimized={true} // QRCodes geralmente não se beneficiam de otimização e podem ser quebrados.
+            />
             <p className="text-sm text-gray-500">Aguardando conexão...</p>
             <button
               onClick={() => setShowQrModal(false)}

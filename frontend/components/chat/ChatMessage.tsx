@@ -14,6 +14,7 @@ import {
   ClockIcon,
   ChatBubbleBottomCenterTextIcon
 } from '@heroicons/react/24/solid';
+import Image from 'next/image'; // Importar o componente Image do Next.js
 
 // Reutilizando a interface Message de ChatInterface.tsx ou definindo-a aqui se movida.
 export interface Message {
@@ -26,6 +27,7 @@ export interface Message {
   audioSrc?: string; // Para mensagens de áudio do usuário
   isLoading?: boolean; // Para mensagens do agente que estão carregando
   onboarding_status?: string; // Para funcionalidade do onboarding
+  image?: string; // Para mensagens com anexos de imagem
 }
 
 interface ChatMessageProps {
@@ -164,6 +166,18 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
                   {isUser ? message.text : message.text.replace(/^```markdown\n|\n```$/g, '')}
                 </ReactMarkdown>
               </div>
+
+              {message.image && (
+                <div className="mt-2">
+                  <Image
+                    src={message.image}
+                    alt="Anexo da mensagem"
+                    width={200} // Ajuste conforme necessário para o layout
+                    height={150} // Ajuste conforme necessário
+                    className="rounded-md max-w-full h-auto"
+                  />
+                </div>
+              )}
 
               {/* Actions & Metrics - Apenas no playground */}
               {isPlayground && !message.isLoading && (

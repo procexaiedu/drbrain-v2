@@ -14,17 +14,19 @@ interface ChatWindowProps {
 export default function ChatWindow({ conversation }: ChatWindowProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const messagesEndRef = useRef<HTMLDivLement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null); // Corrigido de HTMLDivLement
 
   const { data, isLoading, isError } = useQuery<Message[]>(
-    ['whatsappMessages', conversation.id],
-    async () => {
-      if (!user?.id) return [];
-      const res = await fetch(`/api/whatsapp-chat/messages?conversation_id=${conversation.id}`);
-      if (!res.ok) throw new Error('Failed to fetch messages');
-      return res.json();
-    },
-    { enabled: !!user?.id && !!conversation.id } 
+    {
+      queryKey: ['whatsappMessages', conversation.id],
+      queryFn: async () => {
+        if (!user?.id) return [];
+        const res = await fetch(`/api/whatsapp-chat/messages?conversation_id=${conversation.id}`);
+        if (!res.ok) throw new Error('Failed to fetch messages');
+        return res.json();
+      },
+      enabled: !!user?.id && !!conversation.id 
+    }
   );
 
   // Ensure messages is always an array for mapping
@@ -78,7 +80,7 @@ export default function ChatWindow({ conversation }: ChatWindowProps) {
         };
     }
 
-  }, [conversation.id, conversation.unread_messages, user?.id, queryClient]);
+  }, [conversation.id, conversation.unread_messages, user?.id, queryClient, markAsReadMutation]); // Adicionado markAsReadMutation como dependência
 
   if (isLoading) {
     return <div className="flex flex-col items-center justify-center h-full text-gray-500">Carregando mensagens...</div>;
