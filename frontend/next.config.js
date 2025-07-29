@@ -4,7 +4,7 @@ const nextConfig = {
   async rewrites() {
     return [
       {
-        source: '/edge/v1/:path*',
+        source: '/api/:path*',
         destination: 'https://erutqtbknunsjfnkeevt.supabase.co/functions/v1/:path*',
       },
     ];

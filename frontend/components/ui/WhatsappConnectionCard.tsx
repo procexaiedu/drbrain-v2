@@ -5,12 +5,13 @@ import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'; /
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabaseClient';
 import Image from 'next/image';
+// import { Conversation } from '../types'; // Removido import desnecessário
 
 interface WhatsappConnectionCardProps {
   currentStatus: string;
 }
 
-const SUPABASE_FUNCTIONS_URL = process.env.NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL;
+// const SUPABASE_FUNCTIONS_URL = process.env.NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL; // Removido
 
 export default function WhatsappConnectionCard({ currentStatus }: WhatsappConnectionCardProps) {
   const [showQrModal, setShowQrModal] = useState(false);
@@ -22,8 +23,8 @@ export default function WhatsappConnectionCard({ currentStatus }: WhatsappConnec
   const connectMutation = useMutation({
     mutationFn: async () => {
       if (!user?.id) throw new Error('User not logged in');
-      if (!SUPABASE_FUNCTIONS_URL) throw new Error("Supabase functions URL is not defined");
-      const res = await fetch(`${SUPABASE_FUNCTIONS_URL}/evolution-manager/connect`, { method: 'POST' });
+      // if (!SUPABASE_FUNCTIONS_URL) throw new Error("Supabase functions URL is not defined"); // Removido
+      const res = await fetch(`/api/evolution-manager/connect`, { method: 'POST' }); // Caminho padronizado
       if (!res.ok) {
         const errorData = await res.json();
         throw new Error(errorData.message || 'Failed to initiate connection');
@@ -43,8 +44,8 @@ export default function WhatsappConnectionCard({ currentStatus }: WhatsappConnec
   const disconnectMutation = useMutation({
     mutationFn: async () => {
       if (!user?.id) throw new Error('User not logged in');
-      if (!SUPABASE_FUNCTIONS_URL) throw new Error("Supabase functions URL is not defined");
-      const res = await fetch(`${SUPABASE_FUNCTIONS_URL}/evolution-manager/disconnect`, { method: 'DELETE' });
+      // if (!SUPABASE_FUNCTIONS_URL) throw new Error("Supabase functions URL is not defined"); // Removido
+      const res = await fetch(`/api/evolution-manager/disconnect`, { method: 'DELETE' }); // Caminho padronizado
       if (!res.ok) {
         const errorData = await res.json();
         throw new Error(errorData.message || 'Failed to disconnect');
@@ -103,10 +104,10 @@ export default function WhatsappConnectionCard({ currentStatus }: WhatsappConnec
   }, [user?.id, queryClient]);
 
   // ✅ A verificação da URL acontece depois de todos os hooks
-  if (!SUPABASE_FUNCTIONS_URL) {
-    console.error("NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL is not defined");
-    return <div className="text-red-500">Erro: URL das funções Supabase não configurada.</div>;
-  }
+  // if (!SUPABASE_FUNCTIONS_URL) { // Removido
+  //   console.error("NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL is not defined"); // Removido
+  //   return <div className="text-red-500">Erro: URL das funções Supabase não configurada.</div>; // Removido
+  // }
 
   return (
     <div className="flex flex-col items-center justify-center p-6 bg-white rounded-lg shadow-md max-w-md w-full">

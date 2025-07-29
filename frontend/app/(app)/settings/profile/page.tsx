@@ -36,7 +36,7 @@ const fetchMedicoProfile = async (): Promise<MedicoProfile> => {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) throw new Error("Usuário não autenticado para buscar perfil.");
 
-  const response = await fetch('/edge/v1/get-medico-profile', {
+  const response = await fetch('/api/get-medico-profile', {
     method: 'GET',
     headers: {
       'Authorization': `Bearer ${session.access_token}`,
@@ -55,7 +55,7 @@ const updateMedicoProfile = async (profileData: Partial<MedicoProfile>): Promise
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) throw new Error("Usuário não autenticado para atualizar perfil.");
 
-  const response = await fetch('/edge/v1/update-medico-profile', {
+  const response = await fetch('/api/update-medico-profile', {
     method: 'PUT',
     headers: {
       'Authorization': `Bearer ${session.access_token}`,

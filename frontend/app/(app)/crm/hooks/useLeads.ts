@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { Lead, LeadFormData, LeadStatus, PaginatedResponse } from '../types';
 import { toast } from 'sonner';
 
-const API_BASE = '/api/edge';
+const API_BASE = '/api';
 
 // Hook para listar leads
 export function useLeads(
@@ -33,7 +33,7 @@ export function useLeads(
         params.append('status', status);
       }
 
-      const response = await fetch(`${API_BASE}/v1/crm-leads-management?${params}`, {
+      const response = await fetch(`${API_BASE}/crm-leads-management?${params}`, {
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
           'Content-Type': 'application/json',
@@ -61,7 +61,7 @@ export function useLead(leadId: string) {
         throw new Error('Sessão inválida');
       }
 
-      const response = await fetch(`${API_BASE}/v1/crm-leads-management/${leadId}`, {
+      const response = await fetch(`${API_BASE}/crm-leads-management/${leadId}`, {
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
           'Content-Type': 'application/json',
@@ -90,7 +90,7 @@ export function useCreateLead() {
         throw new Error('Sessão inválida');
       }
 
-      const response = await fetch(`${API_BASE}/v1/crm-leads-management`, {
+      const response = await fetch(`${API_BASE}/crm-leads-management`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
@@ -127,7 +127,7 @@ export function useUpdateLead() {
         throw new Error('Sessão inválida');
       }
 
-      const response = await fetch(`${API_BASE}/v1/crm-leads-management/${leadId}`, {
+      const response = await fetch(`${API_BASE}/crm-leads-management/${leadId}`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
@@ -173,7 +173,7 @@ export function useUpdateLeadStatus() {
         throw new Error('Sessão inválida');
       }
 
-      const response = await fetch(`${API_BASE}/v1/crm-leads-management/${leadId}/status`, {
+      const response = await fetch(`${API_BASE}/crm-leads-management/${leadId}/status`, {
         method: 'PATCH',
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
@@ -214,7 +214,7 @@ export function useConvertLead() {
         throw new Error('Sessão inválida');
       }
 
-      const response = await fetch(`${API_BASE}/v1/crm-leads-management/${leadId}/converter`, {
+      const response = await fetch(`${API_BASE}/crm-leads-management/${leadId}/converter`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
@@ -252,7 +252,7 @@ export function useDeleteLead() {
         throw new Error('Sessão inválida');
       }
 
-      const response = await fetch(`${API_BASE}/v1/crm-leads-management/${leadId}`, {
+      const response = await fetch(`${API_BASE}/crm-leads-management/${leadId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${session.access_token}`,

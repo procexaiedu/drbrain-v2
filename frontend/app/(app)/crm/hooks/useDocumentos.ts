@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { DocumentoContato, DocumentoUploadData } from '../types';
 import { toast } from 'sonner';
 
-const API_BASE = '/api/edge';
+const API_BASE = '/api';
 
 // Hook para listar documentos de um contato (lead ou paciente)
 export function useDocumentosContato(
@@ -26,7 +26,7 @@ export function useDocumentosContato(
         params.append('paciente_id', contatoId);
       }
 
-      const response = await fetch(`${API_BASE}/v1/crm-documentos?${params}`, {
+      const response = await fetch(`${API_BASE}/crm-documentos?${params}`, {
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
           'Content-Type': 'application/json',
@@ -77,7 +77,7 @@ export function useUploadDocumento() {
         formData.append('descricao_documento', documentoData.descricao_documento);
       }
 
-      const response = await fetch(`${API_BASE}/v1/crm-documentos/upload`, {
+      const response = await fetch(`${API_BASE}/crm-documentos/upload`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
@@ -118,7 +118,7 @@ export function useDownloadDocumento() {
         throw new Error('Sessão inválida');
       }
 
-      const response = await fetch(`${API_BASE}/v1/crm-documentos/${documentoId}/download`, {
+      const response = await fetch(`${API_BASE}/crm-documentos/${documentoId}/download`, {
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
           'Content-Type': 'application/json',
@@ -159,7 +159,7 @@ export function useDeleteDocumento() {
         throw new Error('Sessão inválida');
       }
 
-      const response = await fetch(`${API_BASE}/v1/crm-documentos/${documentoId}`, {
+      const response = await fetch(`${API_BASE}/crm-documentos/${documentoId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${session.access_token}`,

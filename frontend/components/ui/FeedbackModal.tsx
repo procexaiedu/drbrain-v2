@@ -45,7 +45,7 @@ export default function FeedbackModal() {
     
     setIsHistoryLoading(true);
     try {
-      const response = await fetch(`/edge/v1/get-feedback-history?medico_id=${user.id}`, {
+      const response = await fetch(`/api/get-feedback-history?medico_id=${user.id}`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${session?.access_token}`,
@@ -81,7 +81,7 @@ export default function FeedbackModal() {
     
     setIsClearingMemory(true);
     try {
-      const response = await fetch('/edge/v1/limpar-memoria-feedback', {
+      const response = await fetch('/api/limpar-memoria-feedback', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -179,7 +179,7 @@ export default function FeedbackModal() {
     setIsLoading(true);
 
     try {
-      const response = await fetch('/edge/v1/feedback-chat', {
+      const response = await fetch('/api/feedback-chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

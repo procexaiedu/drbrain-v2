@@ -30,7 +30,7 @@ const fetchMedicoProfileForLayout = async (): Promise<MedicoProfile | null> => {
     return null; 
   }
 
-  const response = await fetch('/edge/v1/get-medico-profile', {
+  const response = await fetch('/api/get-medico-profile', {
     method: 'GET',
     headers: {
       'Authorization': `Bearer ${session.access_token}`,

@@ -21,7 +21,7 @@ function ConnectionsPageContent() {
       }
       setIsLoading(true);
       try {
-        const response = await fetch('/edge/v1/google-calendar-auth-status', {
+        const response = await fetch('/api/google-calendar-auth-status', {
           headers: {
             'Authorization': `Bearer ${session.access_token}`,
           },
@@ -64,7 +64,7 @@ function ConnectionsPageContent() {
     }
     setIsSubmitting(true);
     try {
-      const connectUrl = '/edge/v1/google-calendar-auth-connect';
+      const connectUrl = '/api/google-calendar-auth-connect';
       const response = await fetch(connectUrl, {
         method: 'GET',
         headers: {
@@ -104,7 +104,7 @@ function ConnectionsPageContent() {
     }
     setIsSubmitting(true);
     try {
-      const response = await fetch('/edge/v1/google-calendar-auth-disconnect', { // Endpoint a ser criado
+      const response = await fetch('/api/google-calendar-auth-disconnect', { // Endpoint a ser criado
         method: 'POST', 
         headers: {
           'Authorization': `Bearer ${session.access_token}`,

@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { Paciente, PacienteFormData, PacienteStatus, PaginatedResponse } from '../types';
 import { toast } from 'sonner';
 
-const API_BASE = '/api/edge';
+const API_BASE = '/api';
 
 // Hook para listar pacientes
 export function usePacientes(
@@ -33,7 +33,7 @@ export function usePacientes(
         params.append('status', status);
       }
 
-      const response = await fetch(`${API_BASE}/v1/crm-pacientes-management?${params}`, {
+      const response = await fetch(`${API_BASE}/crm-pacientes-management?${params}`, {
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
           'Content-Type': 'application/json',
@@ -61,7 +61,7 @@ export function usePaciente(pacienteId: string) {
         throw new Error('Sessão inválida');
       }
 
-      const response = await fetch(`${API_BASE}/v1/crm-pacientes-management/${pacienteId}`, {
+      const response = await fetch(`${API_BASE}/crm-pacientes-management/${pacienteId}`, {
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
           'Content-Type': 'application/json',
@@ -90,7 +90,7 @@ export function useCreatePaciente() {
         throw new Error('Sessão inválida');
       }
 
-      const response = await fetch(`${API_BASE}/v1/crm-pacientes-management`, {
+      const response = await fetch(`${API_BASE}/crm-pacientes-management`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
@@ -133,7 +133,7 @@ export function useUpdatePaciente() {
         throw new Error('Sessão inválida');
       }
 
-      const response = await fetch(`${API_BASE}/v1/crm-pacientes-management/${pacienteId}`, {
+      const response = await fetch(`${API_BASE}/crm-pacientes-management/${pacienteId}`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
@@ -177,7 +177,7 @@ export function useUpdatePacienteStatus() {
         throw new Error('Sessão inválida');
       }
 
-      const response = await fetch(`${API_BASE}/v1/crm-pacientes-management/${pacienteId}/status`, {
+      const response = await fetch(`${API_BASE}/crm-pacientes-management/${pacienteId}/status`, {
         method: 'PATCH',
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
@@ -215,7 +215,7 @@ export function useDeletePaciente() {
         throw new Error('Sessão inválida');
       }
 
-      const response = await fetch(`${API_BASE}/v1/crm-pacientes-management/${pacienteId}`, {
+      const response = await fetch(`${API_BASE}/crm-pacientes-management/${pacienteId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${session.access_token}`,

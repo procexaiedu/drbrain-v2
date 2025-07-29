@@ -32,7 +32,7 @@ const createDoctorAdmin = async (payload: CreateDoctorPayload): Promise<CreateDo
     throw new Error("Operação não permitida. Apenas administradores podem criar médicos.");
   }
 
-  const response = await fetch('/api/v1/create-medico-admin', {
+  const response = await fetch('/api/create-medico-admin', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${session.access_token}`,
