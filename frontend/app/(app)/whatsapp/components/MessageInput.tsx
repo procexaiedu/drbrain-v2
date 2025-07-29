@@ -69,10 +69,10 @@ export default function MessageInput({ conversationId, contactJid }: MessageInpu
       />
       <button
         onClick={handleSendMessage}
-        disabled={sendMessageMutation.isLoading || !messageContent.trim()}
+        disabled={sendMessageMutation.isPending || !messageContent.trim()}
         className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-full disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        {sendMessageMutation.isLoading ? 'Enviando...' : 'Enviar'}
+        {sendMessageMutation.isPending ? 'Enviando...' : 'Enviar'}
       </button>
     </div>
   );
