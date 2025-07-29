@@ -16,17 +16,14 @@ export default function MessageInput({ conversationId, contactJid }: MessageInpu
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  if (!SUPABASE_FUNCTIONS_URL) {
-    console.error("NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL is not defined");
-    return <div className="text-red-500">Erro: URL das funções Supabase não configurada.</div>;
-  }
-
+  // ✅ CORREÇÃO: Hook movido para o topo
   const sendMessageMutation = useMutation({
     mutationFn: async (message: string) => {
       if (!user?.id) throw new Error('User not logged in');
       if (!conversationId) throw new Error('Conversation not selected');
+      if (!SUPABASE_FUNCTIONS_URL) throw new Error("Supabase functions URL is not defined");
 
-      const res = await fetch(`${SUPABASE_FUNCTIONS_URL}/whatsapp-chat/send-message`, { // URL corrigida
+      const res = await fetch(`${SUPABASE_FUNCTIONS_URL}/whatsapp-chat/send-message`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -59,6 +56,12 @@ export default function MessageInput({ conversationId, contactJid }: MessageInpu
       sendMessageMutation.mutate(messageContent);
     }
   };
+
+  // ✅ A verificação da URL acontece depois de todos os hooks
+  if (!SUPABASE_FUNCTIONS_URL) {
+    console.error("NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL is not defined");
+    return <div className="text-red-500">Erro: URL das funções Supabase não configurada.</div>;
+  }
 
   return (
     <div className="p-4 border-t bg-gray-50 flex items-center">

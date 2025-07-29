@@ -18,17 +18,14 @@ export default function ChatWindow({ conversation }: ChatWindowProps) {
   const queryClient = useQueryClient();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  if (!SUPABASE_FUNCTIONS_URL) {
-    console.error("NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL is not defined");
-    return <div className="text-red-500">Erro: URL das funções Supabase não configurada.</div>;
-  }
-
+  // ✅ CORREÇÃO: Hooks movidos para o topo
   const { data, isLoading, isError } = useQuery<Message[]>(
     {
       queryKey: ['whatsappMessages', conversation.id],
       queryFn: async () => {
         if (!user?.id) return [];
-        const res = await fetch(`${SUPABASE_FUNCTIONS_URL}/whatsapp-chat/messages?conversation_id=${conversation.id}`); // URL corrigida
+        if (!SUPABASE_FUNCTIONS_URL) throw new Error("Supabase functions URL is not defined");
+        const res = await fetch(`${SUPABASE_FUNCTIONS_URL}/whatsapp-chat/messages?conversation_id=${conversation.id}`);
         if (!res.ok) throw new Error('Failed to fetch messages');
         return res.json();
       },
@@ -41,8 +38,8 @@ export default function ChatWindow({ conversation }: ChatWindowProps) {
   const markAsReadMutation = useMutation({
     mutationFn: async () => {
       if (!user?.id) throw new Error('User not logged in');
-
-      const res = await fetch(`${SUPABASE_FUNCTIONS_URL}/whatsapp-chat/mark-as-read`, { // URL corrigida
+      if (!SUPABASE_FUNCTIONS_URL) throw new Error("Supabase functions URL is not defined");
+      const res = await fetch(`${SUPABASE_FUNCTIONS_URL}/whatsapp-chat/mark-as-read`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ conversation_id: conversation.id, medico_id: user.id }),
@@ -65,6 +62,12 @@ export default function ChatWindow({ conversation }: ChatWindowProps) {
     }
 
     if (user?.id && conversation.id) {
+        // A URL da Edge Function precisa estar definida antes de se inscrever
+        if (!SUPABASE_FUNCTIONS_URL) {
+          console.error("Cannot subscribe to Realtime: SUPABASE_FUNCTIONS_URL is not defined");
+          return; // Não prossegue com a subscrição se a URL não está definida
+        }
+
         const messagesChannel = supabase
             .channel(`whatsapp_messages_conv_window:${conversation.id}`)
             .on('postgres_changes', {
@@ -88,12 +91,10 @@ export default function ChatWindow({ conversation }: ChatWindowProps) {
 
   }, [conversation.id, conversation.unread_messages, user?.id, queryClient, markAsReadMutation]);
 
-  if (isLoading) {
-    return <div className="flex flex-col items-center justify-center h-full text-gray-500">Carregando mensagens...</div>;
-  }
-
-  if (isError) {
-    return <div className="flex flex-col items-center justify-center h-full text-red-500">Erro ao carregar mensagens.</div>;
+  // ✅ A verificação da URL acontece depois de todos os hooks
+  if (!SUPABASE_FUNCTIONS_URL) {
+    console.error("NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL is not defined");
+    return <div className="text-red-500">Erro: URL das funções Supabase não configurada.</div>;
   }
 
   return (

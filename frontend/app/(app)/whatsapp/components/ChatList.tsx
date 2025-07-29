@@ -14,17 +14,14 @@ const SUPABASE_FUNCTIONS_URL = process.env.NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL;
 export default function ChatList({ onSelectConversation, selectedConversationId }: ChatListProps) {
   const { user } = useAuth();
 
-  if (!SUPABASE_FUNCTIONS_URL) {
-    console.error("NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL is not defined");
-    return <div className="text-red-500">Erro: URL das funções Supabase não configurada.</div>;
-  }
-
+  // ✅ CORREÇÃO: Hook movido para o topo
   const { data, isLoading, isError } = useQuery<Conversation[]>(
     {
       queryKey: ['whatsappConversations', user?.id],
       queryFn: async () => {
         if (!user?.id) return [];
-        const res = await fetch(`${SUPABASE_FUNCTIONS_URL}/whatsapp-chat/conversations`); // URL corrigida
+        if (!SUPABASE_FUNCTIONS_URL) throw new Error("Supabase functions URL is not defined");
+        const res = await fetch(`${SUPABASE_FUNCTIONS_URL}/whatsapp-chat/conversations`);
         if (!res.ok) throw new Error('Failed to fetch conversations');
         return res.json();
       },
@@ -34,6 +31,12 @@ export default function ChatList({ onSelectConversation, selectedConversationId 
   );
 
   const conversations: Conversation[] = data || [];
+
+  // ✅ A verificação da URL acontece depois de todos os hooks
+  if (!SUPABASE_FUNCTIONS_URL) {
+    console.error("NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL is not defined");
+    return <div className="text-red-500">Erro: URL das funções Supabase não configurada.</div>;
+  }
 
   if (isLoading) {
     return <div className="text-center py-4 text-gray-500">Carregando conversas...</div>;

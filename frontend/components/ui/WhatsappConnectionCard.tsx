@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'; // Importar useQuery também, caso precise
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabaseClient';
 import Image from 'next/image';
@@ -18,15 +18,12 @@ export default function WhatsappConnectionCard({ currentStatus }: WhatsappConnec
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  if (!SUPABASE_FUNCTIONS_URL) {
-    console.error("NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL is not defined");
-    return <div className="text-red-500">Erro: URL das funções Supabase não configurada.</div>;
-  }
-
+  // ✅ CORREÇÃO: Hooks movidos para o topo
   const connectMutation = useMutation({
     mutationFn: async () => {
       if (!user?.id) throw new Error('User not logged in');
-      const res = await fetch(`${SUPABASE_FUNCTIONS_URL}/evolution-manager/connect`, { method: 'POST' }); // URL corrigida
+      if (!SUPABASE_FUNCTIONS_URL) throw new Error("Supabase functions URL is not defined");
+      const res = await fetch(`${SUPABASE_FUNCTIONS_URL}/evolution-manager/connect`, { method: 'POST' });
       if (!res.ok) {
         const errorData = await res.json();
         throw new Error(errorData.message || 'Failed to initiate connection');
@@ -46,7 +43,8 @@ export default function WhatsappConnectionCard({ currentStatus }: WhatsappConnec
   const disconnectMutation = useMutation({
     mutationFn: async () => {
       if (!user?.id) throw new Error('User not logged in');
-      const res = await fetch(`${SUPABASE_FUNCTIONS_URL}/evolution-manager/disconnect`, { method: 'DELETE' }); // URL corrigida
+      if (!SUPABASE_FUNCTIONS_URL) throw new Error("Supabase functions URL is not defined");
+      const res = await fetch(`${SUPABASE_FUNCTIONS_URL}/evolution-manager/disconnect`, { method: 'DELETE' });
       if (!res.ok) {
         const errorData = await res.json();
         throw new Error(errorData.message || 'Failed to disconnect');
@@ -103,6 +101,12 @@ export default function WhatsappConnectionCard({ currentStatus }: WhatsappConnec
       supabase.removeChannel(channel);
     };
   }, [user?.id, queryClient]);
+
+  // ✅ A verificação da URL acontece depois de todos os hooks
+  if (!SUPABASE_FUNCTIONS_URL) {
+    console.error("NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL is not defined");
+    return <div className="text-red-500">Erro: URL das funções Supabase não configurada.</div>;
+  }
 
   return (
     <div className="flex flex-col items-center justify-center p-6 bg-white rounded-lg shadow-md max-w-md w-full">
