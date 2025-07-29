@@ -1,21 +1,25 @@
 -- Adiciona 'evolution_api' ao tipo ENUM da coluna 'provider' em medico_oauth_tokens
 DO $$
 BEGIN
+    -- Se o tipo ENUM ainda não existe, crie-o com todos os valores conhecidos
     IF NOT EXISTS (
         SELECT 1 FROM pg_type WHERE typname = 'provider_enum' AND typcategory = 'E'
     ) THEN
-        -- Se o tipo não existe, crie-o. Isso pode acontecer se a tabela medico_oauth_tokens foi criada sem o tipo.
-        CREATE TYPE provider_enum AS ENUM ('google_calendar', 'asaas');
+        CREATE TYPE provider_enum AS ENUM ('google_calendar', 'asaas', 'evolution_api');
+        -- Altera o tipo da coluna com cast explícito
         ALTER TABLE public.medico_oauth_tokens ALTER COLUMN provider TYPE provider_enum USING provider::text::provider_enum;
-    END IF;
-
-    IF NOT EXISTS (
-        SELECT 1
-        FROM pg_enum
-        WHERE enumtypid = (SELECT oid FROM pg_type WHERE typname = 'provider_enum')
-        AND enumlabel = 'evolution_api'
-    ) THEN
-        ALTER TYPE provider_enum ADD VALUE 'evolution_api';
+    ELSE
+        -- Se o tipo ENUM já existe, adicione os novos valores se ainda não existirem
+        IF NOT EXISTS (
+            SELECT 1 FROM pg_enum WHERE enumtypid = (SELECT oid FROM pg_type WHERE typname = 'provider_enum') AND enumlabel = 'asaas'
+        ) THEN
+            ALTER TYPE provider_enum ADD VALUE 'asaas';
+        END IF;
+        IF NOT EXISTS (
+            SELECT 1 FROM pg_enum WHERE enumtypid = (SELECT oid FROM pg_type WHERE typname = 'provider_enum') AND enumlabel = 'evolution_api'
+        ) THEN
+            ALTER TYPE provider_enum ADD VALUE 'evolution_api';
+        END IF;
     END IF;
 END$$;
 

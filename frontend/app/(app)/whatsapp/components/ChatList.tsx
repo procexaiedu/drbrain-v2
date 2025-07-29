@@ -1,7 +1,7 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { useAuth } from '@/context/AuthContext'; // Usando o hook useAuth
+import { useAuth } from '@/context/AuthContext';
 import { Conversation } from '../types';
 
 interface ChatListProps {
@@ -10,18 +10,24 @@ interface ChatListProps {
 }
 
 export default function ChatList({ onSelectConversation, selectedConversationId }: ChatListProps) {
-  const { user } = useAuth(); // Usando o hook useAuth
+  const { user } = useAuth();
 
-  const { data: conversations, isLoading, isError } = useQuery<Conversation[]>(
-    ['whatsappConversations', user?.id],
-    async () => {
-      if (!user?.id) return [];
-      const res = await fetch('/api/whatsapp-chat/conversations');
-      if (!res.ok) throw new Error('Failed to fetch conversations');
-      return res.json();
-    },
-    { enabled: !!user?.id, staleTime: 10 * 1000 } // Cache for 10 seconds
+  const { data, isLoading, isError } = useQuery<Conversation[]>(
+    {
+      queryKey: ['whatsappConversations', user?.id],
+      queryFn: async () => {
+        if (!user?.id) return [];
+        const res = await fetch('/api/whatsapp-chat/conversations');
+        if (!res.ok) throw new Error('Failed to fetch conversations');
+        return res.json();
+      },
+      enabled: !!user?.id, 
+      staleTime: 10 * 1000 
+    }
   );
+
+  // Garante que 'conversations' é sempre um array para métodos de array
+  const conversations: Conversation[] = data || [];
 
   if (isLoading) {
     return <div className="text-center py-4 text-gray-500">Carregando conversas...</div>;
@@ -31,7 +37,7 @@ export default function ChatList({ onSelectConversation, selectedConversationId 
     return <div className="text-center py-4 text-red-500">Erro ao carregar conversas.</div>;
   }
 
-  if (!conversations || conversations.length === 0) {
+  if (conversations.length === 0) { // Agora 'conversations' é sempre um array
     return <div className="text-center py-4 text-gray-500">Nenhuma conversa encontrada.</div>;
   }
 
@@ -40,7 +46,7 @@ export default function ChatList({ onSelectConversation, selectedConversationId 
       <h3 className="text-xl font-bold mb-4">Conversas</h3>
       <ul>
         {conversations
-          .sort((a, b) => new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime())
+          .sort((a, b) => new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime()) // 'conversations' agora é Message[]
           .map((conv) => (
             <li
               key={conv.id}
@@ -60,7 +66,7 @@ export default function ChatList({ onSelectConversation, selectedConversationId 
                   )}
                 </div>
                 <div className="flex justify-between items-center mt-1">
-                  <p className="text-sm text-gray-600 truncate">Última mensagem...</p> {/* Placeholder, will be filled with actual last message later */}
+                  <p className="text-sm text-gray-600 truncate">Última mensagem...</p>
                   {conv.unread_messages > 0 && (
                     <span className="inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-red-100 bg-red-600 rounded-full">
                       {conv.unread_messages}
