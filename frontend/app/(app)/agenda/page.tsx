@@ -76,7 +76,7 @@ const fetchAgendaEvents = async (fetchInfoInput?: { startStr: string, endStr: st
     console.log('fetchAgendaEvents: Usando intervalo padrão (mês atual):', effectiveFetchInfo);
   }
 
-  let url = '/edge/v1/agenda-crud-events';
+  let url = '/api/v1/agenda-crud-events';
   url += `?start_date=${encodeURIComponent(effectiveFetchInfo.startStr)}&end_date=${encodeURIComponent(effectiveFetchInfo.endStr)}`;
   
   const response = await fetch(url, {
@@ -117,7 +117,7 @@ const createAgendaEventAPI = async (newEventData: EventFormData): Promise<any> =
     // A lógica de adicionar conferência será tratada pela Edge Function
     payload.conferenceData = { createRequest: { requestId: `drbrain-meet-${Date.now()}` } };
   }
-  const response = await fetch('/edge/v1/agenda-crud-events', {
+  const response = await fetch('/api/v1/agenda-crud-events', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${session.access_token}`,
@@ -140,7 +140,7 @@ const updateAgendaEventAPI = async ({ eventId, eventData }: { eventId: string, e
   if (eventData.start) payload.start = { dateTime: new Date(eventData.start).toISOString() };
   if (eventData.end) payload.end = { dateTime: new Date(eventData.end).toISOString() };
 
-  const response = await fetch(`/edge/v1/agenda-crud-events/${eventId}`, {
+  const response = await fetch(`/api/v1/agenda-crud-events/${eventId}`, {
     method: 'PUT',
     headers: {
       'Authorization': `Bearer ${session.access_token}`,
@@ -159,7 +159,7 @@ const deleteAgendaEventAPI = async (eventId: string): Promise<void> => {
   const { data: { session }, error: sessionError } = await supabase.auth.getSession();
   if (sessionError || !session) throw new Error('Usuário não autenticado.');
   
-  const response = await fetch(`/edge/v1/agenda-crud-events/${eventId}`, {
+  const response = await fetch(`/api/v1/agenda-crud-events/${eventId}`, {
     method: 'DELETE',
     headers: { 'Authorization': `Bearer ${session.access_token}` }
   });
@@ -175,7 +175,7 @@ const deleteAgendaEventAPI = async (eventId: string): Promise<void> => {
 const requestPatientContactAPI = async (contactData: ContactFormData): Promise<any> => {
   const { data: { session }, error: sessionError } = await supabase.auth.getSession();
   if (sessionError || !session) throw new Error('Usuário não autenticado.');
-  const response = await fetch('/edge/v1/secretaria-ia-agendamento/contact-patient', {
+  const response = await fetch('/api/v1/secretaria-ia-agendamento/contact-patient', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${session.access_token}`,

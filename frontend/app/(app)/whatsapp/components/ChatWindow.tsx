@@ -25,7 +25,7 @@ export default function ChatWindow({ conversation }: ChatWindowProps) {
       queryFn: async () => {
         if (!user?.id) return [];
         if (!SUPABASE_FUNCTIONS_URL) throw new Error("Supabase functions URL is not defined");
-        const res = await fetch(`${SUPABASE_FUNCTIONS_URL}/whatsapp-chat/messages?conversation_id=${conversation.id}`);
+        const res = await fetch(`/api/whatsapp-chat/messages?conversation_id=${conversation.id}`);
         if (!res.ok) throw new Error('Failed to fetch messages');
         return res.json();
       },
@@ -39,7 +39,7 @@ export default function ChatWindow({ conversation }: ChatWindowProps) {
     mutationFn: async () => {
       if (!user?.id) throw new Error('User not logged in');
       if (!SUPABASE_FUNCTIONS_URL) throw new Error("Supabase functions URL is not defined");
-      const res = await fetch(`${SUPABASE_FUNCTIONS_URL}/whatsapp-chat/mark-as-read`, {
+      const res = await fetch(`/api/whatsapp-chat/mark-as-read`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ conversation_id: conversation.id, medico_id: user.id }),

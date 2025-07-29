@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { Paciente, PacienteFormData, PacienteStatus, PaginatedResponse } from '../types';
 import { toast } from 'sonner';
 
-const API_BASE = process.env.NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL || '/api/edge';
+const API_BASE = '/api/edge';
 
 // Hook para listar pacientes
 export function usePacientes(

@@ -21,7 +21,7 @@ export default function ChatList({ onSelectConversation, selectedConversationId 
       queryFn: async () => {
         if (!user?.id) return [];
         if (!SUPABASE_FUNCTIONS_URL) throw new Error("Supabase functions URL is not defined");
-        const res = await fetch(`${SUPABASE_FUNCTIONS_URL}/whatsapp-chat/conversations`);
+        const res = await fetch(`/api/whatsapp-chat/conversations`);
         if (!res.ok) throw new Error('Failed to fetch conversations');
         return res.json();
       },

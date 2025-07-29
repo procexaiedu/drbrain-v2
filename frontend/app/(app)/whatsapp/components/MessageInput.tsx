@@ -23,7 +23,7 @@ export default function MessageInput({ conversationId, contactJid }: MessageInpu
       if (!conversationId) throw new Error('Conversation not selected');
       if (!SUPABASE_FUNCTIONS_URL) throw new Error("Supabase functions URL is not defined");
 
-      const res = await fetch(`${SUPABASE_FUNCTIONS_URL}/whatsapp-chat/send-message`, {
+      const res = await fetch(`/api/whatsapp-chat/send-message`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabaseClient';
 import { DashboardData } from '../types';
 
-const API_BASE = process.env.NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL || '/edge';
+const API_BASE = '/api';
 
 async function fetchDashboardData(): Promise<DashboardData> {
   const { data: { session } } = await supabase.auth.getSession();

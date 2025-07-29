@@ -48,7 +48,7 @@ export default function OnboardingPage() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error("Sessão não encontrada para buscar perfil.");
 
-      const response = await fetch('/edge/v1/get-medico-profile', {
+      const response = await fetch('/api/v1/get-medico-profile', {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
@@ -109,7 +109,7 @@ export default function OnboardingPage() {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session || !user) throw new Error("Sessão ou usuário não encontrado para carregar histórico.");
 
-        const response = await fetch(`/edge/v1/get-onboarding-history?sessionId=${encodeURIComponent(user.id)}`, {
+        const response = await fetch(`/api/v1/get-onboarding-history?sessionId=${encodeURIComponent(user.id)}`, {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${session.access_token}`,
@@ -181,7 +181,7 @@ export default function OnboardingPage() {
         content: content,
       };
 
-      const response = await fetch('/edge/v1/onboarding-chat', {
+      const response = await fetch('/api/v1/onboarding-chat', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
@@ -247,7 +247,7 @@ export default function OnboardingPage() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error("Sessão inválida para limpar histórico.");
 
-      const response = await fetch('/edge/v1/limpar-historico-onboarding', {
+      const response = await fetch('/api/v1/limpar-historico-onboarding', {
         method: 'POST', // Edge function agora espera POST para consistência com outras e para passar token
         headers: {
           'Authorization': `Bearer ${session.access_token}`,

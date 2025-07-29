@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { DocumentoContato, DocumentoUploadData } from '../types';
 import { toast } from 'sonner';
 
-const API_BASE = process.env.NEXT_PUBLIC_SUPABASE_FUNCTIONS_URL || '/api/edge';
+const API_BASE = '/api/edge';
 
 // Hook para listar documentos de um contato (lead ou paciente)
 export function useDocumentosContato(
