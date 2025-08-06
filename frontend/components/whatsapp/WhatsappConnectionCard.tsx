@@ -1,0 +1,400 @@
+"use client";
+
+import React, { useState, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '@/context/AuthContext';
+import Image from 'next/image';
+import { supabase } from '@/lib/supabaseClient';
+
+// --- INTERFACES ---
+
+// **CORREÇÃO 1: Tipo mais preciso para o estado local**
+// Este tipo representa exatamente o que guardamos no estado do componente.
+interface LocalConnectionState {
+  connection_status: 'open' | 'connecting' | 'connected' | 'pending' | 'disconnected' | 'not_configured' | 'pairing';
+  instance_name?: string;
+  qrcode?: string;
+}
+
+// Interface para a resposta da API (mutations)
+interface ApiResponse {
+  status: 'open' | 'connecting' | 'connected' | 'pending' | 'disconnected' | 'not_configured' | 'pairing' | 'qrcode_generated';
+  instanceName?: string;
+  qrcode?: string;
+}
+
+interface QRCodeModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  qrcode: string | null;
+  status: LocalConnectionState['connection_status'] | 'qrcode_generated';
+  isInitialConnectionAttempt: boolean;
+}
+
+// --- COMPONENTE QRCodeModal (Sem alterações) ---
+const QRCodeModal: React.FC<QRCodeModalProps> = ({ isOpen, onClose, qrcode, status, isInitialConnectionAttempt }) => {
+  if (!isOpen) return null;
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 transition-opacity duration-300">
+      <div className="bg-white rounded-lg p-8 max-w-sm w-full mx-4 shadow-2xl transform transition-all duration-300 scale-100">
+        <div className="flex justify-between items-center mb-6">
+          <h3 className="text-xl font-bold text-gray-800">Conectar ao WhatsApp</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 transition-colors">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+          </button>
+        </div>
+        <div className="text-center">
+          {isInitialConnectionAttempt && !qrcode ? (
+             <div className="mb-6 h-64 flex flex-col items-center justify-center bg-gray-50 rounded-lg">
+                <svg className="animate-spin h-8 w-8 text-gray-400 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <p className="text-gray-600">A gerar QR Code...</p>
+             </div>
+          ) : qrcode ? (
+            <div className="mb-6 p-4 border rounded-lg bg-gray-50">
+              <Image src={qrcode} alt="QR Code WhatsApp" width={256} height={256} className="mx-auto object-contain" priority />
+            </div>
+          ) : (
+            <div className="mb-6 h-64 flex flex-col items-center justify-center bg-gray-50 rounded-lg">
+              <p className="text-gray-600">Aguardando QR Code...</p>
+            </div>
+          )}
+          <div className="space-y-3 text-sm text-gray-600">
+            <p className="font-semibold text-gray-700">Instruções para conectar:</p>
+            <ol className="text-left list-decimal list-inside space-y-2 bg-gray-50 p-4 rounded-lg">
+              <li>Abra o WhatsApp no seu telemóvel.</li>
+              <li>Vá para <span className="font-semibold">Definições &gt; Aparelhos conectados</span>.</li>
+              <li>Toque em <span className="font-semibold">&quot;Conectar um aparelho&quot;</span>.</li>
+              <li>Aponte a câmara do seu telemóvel para este QR Code.</li>
+            </ol>
+          </div>
+           <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+             <p className="text-sm text-yellow-700">
+               <strong>Status:</strong> {status === 'pairing' ? 'Aguardando leitura do QR Code...' : 'Conectando...'}
+             </p>
+             <p className="text-xs text-yellow-600 mt-1">
+               Esta janela fechará automaticamente após a conexão.
+             </p>
+           </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+
+// --- COMPONENTE PRINCIPAL (COM AS CORREÇÕES FINAIS) ---
+const WhatsappConnectionCard: React.FC = () => {
+  const [showQRModal, setShowQRModal] = useState(false);
+  const [isInitialConnectionAttempt, setIsInitialConnectionAttempt] = useState(false); 
+  const { session } = useAuth();
+  const queryClient = useQueryClient();
+
+  // **NOVO ESTADO LOCAL** com a tipagem correta.
+  const [connectionStatus, setConnectionStatus] = useState<LocalConnectionState | null>(null);
+
+  // **`useQuery` para busca inicial, agora sem `onSuccess`**
+  const { data: initialData, isLoading, error } = useQuery<LocalConnectionState | null>({
+    queryKey: ['whatsapp-connection-status'],
+    queryFn: async () => {
+      if (!session?.user?.id) return null;
+      
+      const { data, error } = await supabase
+        .from('medico_oauth_tokens')
+        .select('connection_status, qrcode, instance_name')
+        .eq('medico_id', session.user.id)
+        .eq('provider', 'evolution_api')
+        .single();
+      
+      if (error && error.code !== 'PGRST116') { // Ignora erro "nenhuma linha encontrada"
+        throw new Error(error.message);
+      }
+      return data;
+    },
+    enabled: !!session,
+    refetchOnWindowFocus: false,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // **`useEffect` para popular o estado local com os dados da busca inicial**
+  useEffect(() => {
+    if (initialData) {
+      setConnectionStatus(initialData);
+    } else if (!isLoading) {
+      setConnectionStatus({ connection_status: 'not_configured' });
+    }
+  }, [initialData, isLoading]);
+
+
+  // **`useEffect` para a inscrição em Realtime**
+  useEffect(() => {
+    if (!session?.user?.id) return;
+
+    const channel = supabase
+      .channel('medico-oauth-token-changes')
+      .on<LocalConnectionState>( // Informa ao TypeScript o tipo do payload
+        'postgres_changes',
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'medico_oauth_tokens',
+          filter: `medico_id=eq.${session.user.id}`
+        },
+        (payload) => {
+          console.log('Realtime payload recebido:', payload);
+          
+          let newState: LocalConnectionState | null = null;
+          
+          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            newState = payload.new;
+          } else if (payload.eventType === 'DELETE') {
+            // Se o registro for deletado, consideramos como desconectado
+            newState = { connection_status: 'disconnected' };
+          }
+          
+          if(newState) {
+            setConnectionStatus(newState);
+            // Lógica para abrir/fechar o modal
+            if (newState.connection_status === 'open' || newState.connection_status === 'connected') {
+              setShowQRModal(false);
+              setIsInitialConnectionAttempt(false);
+            } else if (newState.connection_status === 'connecting' && newState.qrcode) {
+              setShowQRModal(true);
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [session, supabase]);
+
+  // --- MUTATIONS ---
+  const connectMutation = useMutation<ApiResponse, Error>({
+    mutationFn: async () => {
+      if (!session?.access_token || !session?.user?.id) throw new Error('Not authenticated');
+      setIsInitialConnectionAttempt(true); 
+      setShowQRModal(true);
+      
+      const response = await fetch('/edge/v1/evolution-manager/create-instance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify({ medico_id: session.user.id, path: 'create-instance' }),
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to initiate connection');
+      }
+      return response.json();
+    },
+    onError: (error) => {
+      console.error('Connect error:', error);
+      alert(`Erro ao conectar: ${error.message}`);
+      setIsInitialConnectionAttempt(false); 
+      setShowQRModal(false); 
+    },
+  });
+
+   const disconnectMutation = useMutation({
+    mutationFn: async () => {
+      if (!session?.access_token) throw new Error('No session');
+      
+      const response = await fetch('/edge/v1/evolution-manager/disconnect', {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to disconnect');
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      setShowQRModal(false);
+      // O Realtime irá capturar a mudança no DB, não precisa invalidar.
+    },
+    onError: (error: Error) => {
+      console.error('Disconnect error:', error);
+      alert(`Erro ao desconectar: ${error.message}`);
+    },
+  });
+  
+  // --- LÓGICA DE RENDERIZAÇÃO ---
+  
+  const getStatusText = (status: LocalConnectionState['connection_status'] | undefined) => {
+    switch (status) {
+      case 'open':
+      case 'connected':
+        return 'Conectado';
+      case 'pairing':
+      case 'pending':
+      case 'connecting':
+        return 'Pareamento pendente';
+      case 'disconnected':
+        return 'Desconectado';
+      case 'not_configured':
+      default:
+        return 'Não Configurado';
+    }
+  };
+
+  const getStatusDescription = (status?: string) => {
+    switch (status) {
+      case 'open':
+      case 'connected':
+        return 'WhatsApp Business conectado e a funcionar. Pode receber mensagens e usar a IA.';
+      case 'pairing':
+      case 'pending':
+      case 'connecting':
+        return 'Aguardando pareamento. Leia o QR Code com o seu WhatsApp Business.';
+      case 'disconnected':
+        return 'WhatsApp desconectado. Conecte para ativar a Secretaria IA.';
+      case 'not_configured':
+      default:
+        return 'WhatsApp não configurado. Configure para começar a usar a Secretaria IA.';
+    }
+  };
+  
+  if (isLoading) {
+    return (
+      <div className="bg-white shadow-md rounded-lg p-6 animate-pulse">
+        <div className="flex items-center justify-between">
+          <div className="space-y-2">
+            <div className="h-6 bg-gray-200 rounded w-48"></div>
+            <div className="h-4 bg-gray-200 rounded w-64"></div>
+          </div>
+          <div className="h-10 bg-gray-200 rounded w-32"></div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-white shadow-md rounded-lg p-6 border-l-4 border-red-500">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-semibold text-red-600">WhatsApp Business</h2>
+            <p className="text-sm text-red-500">
+              Erro ao verificar status: {error.message}
+            </p>
+          </div>
+          <button 
+            onClick={() => queryClient.invalidateQueries({ queryKey: ['whatsapp-connection-status'] })}
+            className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
+          >
+            Tentar Novamente
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const isConnected = connectionStatus?.connection_status === 'open' || connectionStatus?.connection_status === 'connected';
+  const isPending = connectionStatus?.connection_status === 'pending' || connectionStatus?.connection_status === 'pairing' || connectionStatus?.connection_status === 'connecting';
+
+  return (
+    <>
+      <div className="bg-white shadow-md rounded-lg p-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-4">
+            <div className="flex-shrink-0">
+              <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                <svg className="w-6 h-6 text-green-600" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893A11.821 11.821 0 0020.885 3.488"/>
+                </svg>
+              </div>
+            </div>
+            <div>
+              <h2 className="text-xl font-semibold flex items-center">
+                WhatsApp Business
+                <span className={`ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                  isConnected ? 'bg-green-100 text-green-800' : 
+                  isPending ? 'bg-yellow-100 text-yellow-800' : 
+                  'bg-red-100 text-red-800'
+                }`}>
+                  <span className={`w-2 h-2 mr-1.5 rounded-full ${
+                    isConnected ? 'bg-green-400' : 
+                    isPending ? 'bg-yellow-400' : 
+                    'bg-red-400'
+                  }`}></span>
+                  {getStatusText(connectionStatus?.connection_status)}
+                </span>
+              </h2>
+              <p className="text-sm text-gray-600 max-w-lg">
+                {getStatusDescription(connectionStatus?.connection_status)}
+              </p>
+              {connectionStatus?.instance_name && (
+                <p className="text-xs text-gray-500 mt-1">
+                  Instância: {connectionStatus.instance_name}
+                </p>
+              )}
+            </div>
+          </div>
+          
+          <div className="flex-shrink-0">
+            {isConnected ? (
+              <button 
+                onClick={() => disconnectMutation.mutate()} 
+                disabled={disconnectMutation.isPending} 
+                className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 disabled:opacity-50 flex items-center space-x-2"
+              >
+                {disconnectMutation.isPending ? (
+                  <>
+                    <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span>A desconectar...</span>
+                  </>
+                ) : (
+                  <span>Desconectar</span>
+                )}
+              </button>
+            ) : (
+              <button 
+                onClick={() => connectMutation.mutate()} 
+                disabled={connectMutation.isPending} 
+                className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 disabled:opacity-50 flex items-center space-x-2"
+              >
+                {connectMutation.isPending ? (
+                  <>
+                    <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span>A conectar...</span>
+                  </>
+                ) : (
+                  <span>Conectar WhatsApp</span>
+                )}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <QRCodeModal 
+        isOpen={showQRModal}
+        onClose={() => {
+          setShowQRModal(false);
+          if (!isConnected && !isPending) {
+            setIsInitialConnectionAttempt(false); 
+          }
+        }}
+        qrcode={connectionStatus?.qrcode || null}
+        status={connectionStatus?.connection_status || 'pairing'}
+        isInitialConnectionAttempt={isInitialConnectionAttempt}
+      />
+    </>
+  );
+};
+
+export default WhatsappConnectionCard;
